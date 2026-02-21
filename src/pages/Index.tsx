@@ -269,12 +269,15 @@ export default function Index() {
         insertTrades(newTrades).catch(console.error),
       ]);
 
-      // Execute top agent trades on Alpaca paper account
+      // Execute top agent trades on Alpaca paper account using stock ETFs
+      const cryptoToEtf: Record<string, string> = {
+        BTC: "BITO", ETH: "ETHA", SOL: "SPY", ADA: "QQQ", AVAX: "IWM",
+      };
       const alpacaTrades = newTrades
         .filter(t => t.action !== "hold")
         .slice(0, 5)
         .map(t => ({
-          symbol: t.asset === "BTC" ? "BTCUSD" : t.asset === "ETH" ? "ETHUSD" : t.asset === "SOL" ? "SOLUSD" : t.asset,
+          symbol: cryptoToEtf[t.asset] || "SPY",
           qty: Math.max(1, Math.round(t.quantity)),
           side: t.action,
           agentId: t.agentId,
@@ -284,18 +287,25 @@ export default function Index() {
         }));
 
       if (alpacaTrades.length > 0) {
-        supabase.functions.invoke("alpaca-trade", {
-          body: { action: "execute", trades: alpacaTrades },
-        }).then(({ data, error }) => {
+        try {
+          const { data, error } = await supabase.functions.invoke("alpaca-trade", {
+            body: { action: "execute", trades: alpacaTrades },
+          });
           if (error) {
             console.error("Alpaca execute error:", error);
           } else {
             const submitted = data?.results?.filter((r: any) => r.status === "submitted")?.length || 0;
+            const errors = data?.results?.filter((r: any) => r.status === "error") || [];
             if (submitted > 0) {
               toast({ title: "Alpaca Trades", description: `${submitted} paper trades submitted to Alpaca.` });
             }
+            if (errors.length > 0) {
+              console.warn("Alpaca trade errors:", errors);
+            }
           }
-        }).catch(console.error);
+        } catch (e) {
+          console.error("Alpaca execute failed:", e);
+        }
       }
 
       setPortfolio({ capital: newCapital, pnl: totalPnl, pnlPercent: Math.round(totalPnlPercent * 100) / 100, generation: currentGen + 1 });
