@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, Zap, Brain, TrendingUp, Shield, Activity, BarChart3, Dna, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import dashboardPreview from "@/assets/dashboard-preview.png";
 
 const logos = [
   { name: "Alpaca", icon: TrendingUp },
@@ -162,32 +163,11 @@ export default function Landing() {
                 <span className="h-2.5 w-2.5 rounded-full bg-primary/60" />
                 <span className="ml-3 text-[10px] font-mono text-muted-foreground">apex-evolution — dashboard</span>
               </div>
-              <div className="p-6 space-y-4">
-                {/* Fake stat cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { label: "Capital", value: "$100,000", color: "text-foreground" },
-                    { label: "Generation", value: "14", color: "text-primary" },
-                    { label: "Top Fitness", value: "0.87", color: "text-apex-cyan" },
-                    { label: "Active Agents", value: "24", color: "text-apex-amber" },
-                  ].map((s) => (
-                    <div key={s.label} className="rounded-lg border border-border bg-secondary/40 p-3">
-                      <p className="text-[10px] font-mono text-muted-foreground uppercase">{s.label}</p>
-                      <p className={`text-lg font-bold font-mono ${s.color}`}>{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Fake chart area */}
-                <div className="h-32 md:h-48 rounded-lg border border-border bg-secondary/20 flex items-end px-4 pb-4 gap-1">
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t bg-primary/40"
-                      style={{ height: `${20 + Math.random() * 70}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
+              <img
+                src={dashboardPreview}
+                alt="APEX Evolution Dashboard showing agent population, market context, and risk metrics"
+                className="w-full"
+              />
             </div>
             {/* Glow */}
             <div className="absolute -inset-4 -z-10 rounded-2xl bg-primary/5 blur-3xl" />
