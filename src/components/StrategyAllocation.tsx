@@ -21,22 +21,30 @@ export default function StrategyAllocation({ agents, totalCapital }: StrategyAll
     const totalFitness = active.reduce((s, a) => s + Math.max(a.fitness, 0), 0);
     if (totalFitness === 0) return [];
 
-    const byArchetype: Record<string, { count: number; totalFitness: number; avgSharpe: number }> = {};
+    const byArchetype: Record<string, { count: number; totalScore: number; avgSharpe: number; avgWinRate: number }> = {};
     active.forEach(a => {
       if (!byArchetype[a.archetype]) {
-        byArchetype[a.archetype] = { count: 0, totalFitness: 0, avgSharpe: 0 };
+        byArchetype[a.archetype] = { count: 0, totalScore: 0, avgSharpe: 0, avgWinRate: 0 };
       }
+      // Use fitness² × (1 + sharpe) to amplify differences between archetypes
+      const fit = Math.max(a.fitness, 0);
+      const sharpeBoost = 1 + Math.max(a.sharpe, 0);
+      const winBoost = 1 + (a.winRate / 100);
       byArchetype[a.archetype].count++;
-      byArchetype[a.archetype].totalFitness += Math.max(a.fitness, 0);
+      byArchetype[a.archetype].totalScore += (fit * fit) * sharpeBoost * winBoost;
       byArchetype[a.archetype].avgSharpe += a.sharpe;
+      byArchetype[a.archetype].avgWinRate += a.winRate;
     });
+
+    const totalScore = Object.values(byArchetype).reduce((s, d) => s + d.totalScore, 0);
+    if (totalScore === 0) return [];
 
     return Object.entries(byArchetype)
       .map(([archetype, data]) => ({
         archetype,
         count: data.count,
-        allocationPercent: (data.totalFitness / totalFitness) * 100,
-        capitalAllocated: (data.totalFitness / totalFitness) * totalCapital,
+        allocationPercent: (data.totalScore / totalScore) * 100,
+        capitalAllocated: (data.totalScore / totalScore) * totalCapital,
         avgSharpe: data.avgSharpe / data.count,
       }))
       .sort((a, b) => b.allocationPercent - a.allocationPercent);
