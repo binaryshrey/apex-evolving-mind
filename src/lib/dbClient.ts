@@ -139,6 +139,54 @@ export async function fetchBehavioralGenome(): Promise<BehavioralGenome> {
   };
 }
 
+// ─── Portfolio ───
+
+export interface PortfolioRow {
+  capital: number;
+  pnl: number;
+  pnlPercent: number;
+  generation: number;
+}
+
+export async function fetchPortfolio(): Promise<PortfolioRow> {
+  const { data, error } = await supabase
+    .from("portfolio")
+    .select("*")
+    .order("id", { ascending: false })
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return {
+    capital: Number(data.capital),
+    pnl: Number(data.pnl),
+    pnlPercent: Number(data.pnl_percent),
+    generation: data.generation,
+  };
+}
+
+export async function insertPortfolioSnapshot(snapshot: {
+  generation: number;
+  capital: number;
+  pnl: number;
+  pnlPercent: number;
+  topAgentId?: string;
+  topAgentName?: string;
+  avgFitnessBefore: number;
+  avgFitnessAfter: number;
+}): Promise<void> {
+  const { error } = await supabase.from("portfolio").insert({
+    generation: snapshot.generation,
+    capital: snapshot.capital,
+    pnl: snapshot.pnl,
+    pnl_percent: snapshot.pnlPercent,
+    top_agent_id: snapshot.topAgentId || null,
+    top_agent_name: snapshot.topAgentName || null,
+    avg_fitness_before: snapshot.avgFitnessBefore,
+    avg_fitness_after: snapshot.avgFitnessAfter,
+  });
+  if (error) throw error;
+}
+
 // ─── Helpers ───
 
 function dbToAgent(row: any): AgentGenome {

@@ -170,6 +170,51 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio: {
+        Row: {
+          avg_fitness_after: number | null
+          avg_fitness_before: number | null
+          capital: number
+          created_at: string
+          diversity_after: number | null
+          diversity_before: number | null
+          generation: number
+          id: number
+          pnl: number
+          pnl_percent: number
+          top_agent_id: string | null
+          top_agent_name: string | null
+        }
+        Insert: {
+          avg_fitness_after?: number | null
+          avg_fitness_before?: number | null
+          capital?: number
+          created_at?: string
+          diversity_after?: number | null
+          diversity_before?: number | null
+          generation?: number
+          id?: number
+          pnl?: number
+          pnl_percent?: number
+          top_agent_id?: string | null
+          top_agent_name?: string | null
+        }
+        Update: {
+          avg_fitness_after?: number | null
+          avg_fitness_before?: number | null
+          capital?: number
+          created_at?: string
+          diversity_after?: number | null
+          diversity_before?: number | null
+          generation?: number
+          id?: number
+          pnl?: number
+          pnl_percent?: number
+          top_agent_id?: string | null
+          top_agent_name?: string | null
+        }
+        Relationships: []
+      }
       post_mortems: {
         Row: {
           agent_id: string

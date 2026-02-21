@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Skull, Sparkles, ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
+import { X, Skull, Sparkles, ArrowRight, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 
 interface GenerationSummary {
   generation: number;
@@ -8,6 +8,8 @@ interface GenerationSummary {
   avgFitnessBefore: number;
   avgFitnessAfter: number;
   topFitness: number;
+  capitalBefore?: number;
+  capitalAfter?: number;
 }
 
 interface GenerationSummaryModalProps {
@@ -19,6 +21,8 @@ export default function GenerationSummaryModal({ summary, onClose }: GenerationS
   if (!summary) return null;
 
   const fitnessChange = summary.avgFitnessAfter - summary.avgFitnessBefore;
+  const capitalChange = (summary.capitalAfter || 0) - (summary.capitalBefore || 0);
+  const capitalChangePercent = summary.capitalBefore ? ((capitalChange / summary.capitalBefore) * 100) : 0;
 
   return (
     <AnimatePresence>
@@ -29,10 +33,8 @@ export default function GenerationSummaryModal({ summary, onClose }: GenerationS
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
-        {/* Backdrop */}
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-        {/* Modal */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -60,7 +62,7 @@ export default function GenerationSummaryModal({ summary, onClose }: GenerationS
           </div>
 
           {/* Stats bar */}
-          <div className="grid grid-cols-3 gap-px bg-border">
+          <div className="grid grid-cols-4 gap-px bg-border">
             <div className="bg-card px-4 py-3 text-center">
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Avg Fitness</div>
               <div className="flex items-center justify-center gap-1.5 mt-1">
@@ -82,10 +84,24 @@ export default function GenerationSummaryModal({ summary, onClose }: GenerationS
                 {Math.round((1 - summary.culled.length / (summary.culled.length + summary.born.length + 30)) * 100)}%
               </div>
             </div>
+            {summary.capitalAfter !== undefined && (
+              <div className="bg-card px-4 py-3 text-center">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Portfolio</div>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <DollarSign className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-mono text-sm font-bold text-foreground">
+                    {summary.capitalAfter.toLocaleString()}
+                  </span>
+                </div>
+                <span className={`font-mono text-[10px] font-semibold ${capitalChange >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {capitalChange >= 0 ? "+" : ""}{capitalChangePercent.toFixed(2)}%
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Scrollable content */}
-          <div className="overflow-y-auto max-h-[calc(80vh-180px)] p-6 space-y-5">
+          <div className="overflow-y-auto max-h-[calc(80vh-220px)] p-6 space-y-5">
             {/* Culled agents */}
             <div className="space-y-2.5">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-destructive flex items-center gap-2">
