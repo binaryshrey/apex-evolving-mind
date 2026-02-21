@@ -441,10 +441,10 @@ export default function Index() {
           onShowTour={() => setShowTour(true)}
         />
 
-        {/* Portfolio + Allocation row */}
+        {/* Alpaca Paper Trading + Allocation row */}
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 md:col-span-4">
-            <PortfolioWidget portfolio={portfolio} isRunning={isRunning} />
+            <AlpacaPaperPanel />
           </div>
           <div className="col-span-12 md:col-span-8">
             <StrategyAllocation agents={agents} totalCapital={portfolio.capital} />
@@ -523,8 +523,6 @@ export default function Index() {
               genHistory={genHistory}
             />
 
-            {/* Alpaca Paper Trading */}
-            <AlpacaPaperPanel />
 
             {/* FRED Macro & Equities */}
             <MacroDataPanel />
