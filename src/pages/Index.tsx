@@ -128,8 +128,9 @@ export default function Index() {
         fitnessAtDeath: bottom.find(a => a.id === pm.agentId)?.fitness || 0,
       }));
 
+      const maxId = Math.max(...agents.map(a => parseInt(a.id.replace("AGT-", ""), 10)), 0);
       const newAgents: AgentGenome[] = airiaResult.offspring.map((child, i) => ({
-        id: `AGT-${String(agents.length + i + 1).padStart(3, "0")}`,
+        id: `AGT-${String(maxId + i + 1).padStart(3, "0")}`,
         name: child.name,
         generation: currentGen + 1,
         fitness: child.fitness,
@@ -172,7 +173,7 @@ export default function Index() {
 
       await Promise.all([
         upsertAgents(updated),
-        insertAgents(newAgents),
+        upsertAgents(newAgents),
         insertPostMortems(newPostMortems),
         insertGeneration(genData),
       ]);
