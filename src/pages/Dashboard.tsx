@@ -545,7 +545,7 @@ export default function Index() {
             <AlpacaPaperPanel portfolio={portfolio} />
           </div>
           <div className="col-span-12 md:col-span-8">
-            <StrategyAllocation agents={agents} totalCapital={portfolio.capital} />
+            <StrategyAllocation agents={agents} totalCapital={portfolio.capital} environment={environment} behavioralDna={behavior} />
           </div>
         </div>
 
