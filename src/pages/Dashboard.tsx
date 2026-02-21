@@ -146,30 +146,104 @@ export default function Index() {
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "extinct"), [agents]);
   const extinctAgents = useMemo(() => agents.filter((a) => a.status === "extinct"), [agents]);
 
-  // ─── Generate simulated trades for agents ───
-  const generateTrades = useCallback((activeAgents: AgentGenome[], gen: number, cryptoData: any): Omit<TradeRecord, "id" | "createdAt">[] => {
+  // ─── Generate environment & behavior-aware trades for agents ───
+  const generateTrades = useCallback((
+    activeAgents: AgentGenome[],
+    gen: number,
+    cryptoData: any,
+    env: EnvironmentState,
+    beh: BehavioralGenome
+  ): Omit<TradeRecord, "id" | "createdAt">[] => {
     const assets = ["BTC", "ETH", "SOL", "ADA", "AVAX"];
     const cryptoKeys: Record<string, string> = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", ADA: "cardano", AVAX: "avalanche-2" };
-    
+
+    // Environment regime biases: how much the regime favors buying vs selling
+    const regimeBuyBias: Record<string, number> = {
+      "risk-on": 0.35,    // strongly favors buying
+      "trending": 0.2,    // moderately favors buying
+      "choppy": -0.1,     // slightly favors selling/holding
+      "risk-off": -0.35,  // strongly favors selling
+    };
+    const buyBias = regimeBuyBias[env.regime] || 0;
+
+    // Volatility affects position sizing
+    const volMultiplier = env.volatility === "high" ? 0.5 : env.volatility === "medium" ? 0.8 : 1.0;
+
+    // Sentiment adds directional pressure (-1 to 1)
+    const sentimentPressure = env.sentiment * 0.15;
+
     return activeAgents.slice(0, 10).map((agent) => {
       const asset = assets[Math.floor(Math.random() * assets.length)];
       const basePrice = cryptoData?.[cryptoKeys[asset]]?.usd || (asset === "BTC" ? 60000 : asset === "ETH" ? 3000 : 100);
-      const action = agent.genome.entryLogic > 0.5 ? "buy" : agent.genome.exitDiscipline > 0.6 ? "sell" : "hold";
-      const pnlMultiplier = (agent.fitness / 100) * (Math.random() * 2 - 0.5);
-      const pnl = Math.round(basePrice * agent.genome.positionSizing * pnlMultiplier * 100) / 100;
-      
+
+      // ─── Decision score: combines genome, environment, and behavioral DNA ───
+      // Agent's intrinsic tendency
+      let score = (agent.genome.entryLogic - 0.5) * 0.4; // genome entry logic
+      score += (0.5 - agent.genome.exitDiscipline) * 0.2; // high exit discipline → more likely to sell
+
+      // Environment influence
+      score += buyBias;
+      score += sentimentPressure;
+
+      // Behavioral DNA influence
+      score += (beh.riskTolerance - 0.5) * 0.2;     // high risk tolerance → more buying
+      score += (beh.momentumBias - 0.5) * 0.15;      // high momentum bias → follow trend (buy in trending)
+      score -= (beh.drawdownSensitivity - 0.5) * 0.1; // high drawdown sensitivity → more cautious
+
+      // Archetype-environment interaction
+      if (agent.archetype === "momentum" && (env.regime === "trending" || env.regime === "risk-on")) {
+        score += 0.15; // momentum thrives in trends
+      } else if (agent.archetype === "defensive" && env.regime === "risk-off") {
+        score -= 0.2; // defensive agents sell in risk-off
+      } else if (agent.archetype === "mean-reversion" && env.regime === "choppy") {
+        score += 0.1; // mean-reversion loves choppy markets
+      } else if (agent.archetype === "volatility" && env.volatility === "high") {
+        score += 0.12; // vol traders thrive in high vol
+      }
+
+      // Earnings avoidance: if earnings are active and user avoids them, bias toward hold
+      if (env.earningsActive && beh.earningsAvoidance > 0.6) {
+        score *= 0.3; // dramatically reduce conviction
+      }
+
+      // Holding patience: high patience → less likely to sell
+      if (score < 0 && beh.holdingPatience > 0.65) {
+        score *= (1 - beh.holdingPatience * 0.4); // dampen sell signal
+      }
+
+      // Determine action from composite score
+      const action: "buy" | "sell" | "hold" = score > 0.1 ? "buy" : score < -0.1 ? "sell" : "hold";
+
+      // Position sizing influenced by behavioral risk tolerance, volatility, and agent genome
+      const rawSize = agent.genome.positionSizing * beh.riskTolerance * volMultiplier;
+      const quantity = Math.round(Math.max(0.01, rawSize * 10) * 100) / 100;
+
+      // PnL influenced by fitness, environment alignment, and conviction
+      const envAlignment = action === "buy" && buyBias > 0 ? 1.2 : action === "sell" && buyBias < 0 ? 1.2 : 0.7;
+      const pnlMultiplier = (agent.fitness / 100) * (Math.random() * 2 - 0.5) * envAlignment;
+      const pnl = Math.round(basePrice * rawSize * pnlMultiplier * 100) / 100;
+
+      // Build detailed rationale
+      const regimeNote = `${env.regime} regime (vol: ${env.volatility}, sentiment: ${env.sentiment > 0 ? "+" : ""}${env.sentiment.toFixed(2)})`;
+      const behaviorNote = score > 0.1
+        ? `risk tolerance ${(beh.riskTolerance * 100).toFixed(0)}% supports entry`
+        : score < -0.1
+        ? `drawdown sensitivity ${(beh.drawdownSensitivity * 100).toFixed(0)}% triggers exit`
+        : `holding patience ${(beh.holdingPatience * 100).toFixed(0)}% favors wait`;
+      const rationale = `${agent.archetype} strategy in ${regimeNote}. ${behaviorNote}. Score: ${score.toFixed(2)}`;
+
       return {
         agentId: agent.id,
         agentName: agent.name,
         generation: gen,
-        action: action as "buy" | "sell" | "hold",
+        action,
         asset,
         entryPrice: Math.round(basePrice * 100) / 100,
         exitPrice: action !== "hold" ? Math.round((basePrice + pnl) * 100) / 100 : null,
-        quantity: Math.round(agent.genome.positionSizing * 10 * 100) / 100,
+        quantity,
         pnl: Math.round(pnl * 100) / 100,
         pnlPercent: Math.round((pnl / basePrice) * 10000) / 100,
-        rationale: `${agent.archetype} strategy: ${action === "buy" ? "entry signal detected" : action === "sell" ? "exit discipline triggered" : "no clear signal"}`,
+        rationale,
       };
     });
   }, []);
@@ -251,7 +325,7 @@ export default function Index() {
       };
 
       // Generate trades using live market prices
-      const newTrades = generateTrades(activeNext, currentGen + 1, marketSnapshot?.data?.crypto);
+      const newTrades = generateTrades(activeNext, currentGen + 1, marketSnapshot?.data?.crypto, environment, behavior);
 
       // Serialize agent upserts to avoid deadlocks
       await upsertAgents(updated);
