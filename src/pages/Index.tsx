@@ -9,6 +9,7 @@ import GenerationChart from "@/components/GenerationChart";
 import SpeciesMap from "@/components/SpeciesMap";
 import EnvironmentPanel from "@/components/EnvironmentPanel";
 import GenerationControls from "@/components/GenerationControls";
+import GenerationSummaryModal from "@/components/GenerationSummaryModal";
 import { Dna, Activity, Brain } from "lucide-react";
 
 const strategies = [
@@ -25,6 +26,14 @@ export default function Index() {
   const [genHistory, setGenHistory] = useState(generationHistory);
   const [currentGen, setCurrentGen] = useState(3);
   const [isRunning, setIsRunning] = useState(false);
+  const [generationSummary, setGenerationSummary] = useState<{
+    generation: number;
+    culled: { id: string; name: string; fitness: number; cause: string; inheritedBy: string[] }[];
+    born: { id: string; name: string; fitness: number; parentIds: string[] }[];
+    avgFitnessBefore: number;
+    avgFitnessAfter: number;
+    topFitness: number;
+  } | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentState>({
     regime: "trending",
     volatility: "medium",
@@ -90,6 +99,9 @@ export default function Index() {
 
         setPostMortems((pm) => [...newPostMortems, ...pm].slice(0, 10));
 
+        // Compute avg fitness before
+        const avgBefore = sorted.reduce((s, a) => s + a.fitness, 0) / sorted.length;
+
         // Update surviving agents with slight fitness changes
         const updated = prev.map((a) => {
           if (culled.find((c) => c.id === a.id)) {
@@ -105,7 +117,33 @@ export default function Index() {
           };
         });
 
-        return [...updated, ...newAgents];
+        const allNext = [...updated, ...newAgents];
+        const activeNext = allNext.filter(a => a.status !== "extinct");
+        const avgAfter = activeNext.reduce((s, a) => s + a.fitness, 0) / activeNext.length;
+        const topFit = Math.max(...activeNext.map(a => a.fitness));
+
+        // Set summary for modal
+        setGenerationSummary({
+          generation: currentGen + 1,
+          culled: culled.map((a) => ({
+            id: a.id,
+            name: a.name,
+            fitness: a.fitness,
+            cause: newPostMortems.find(pm => pm.agentId === a.id)?.cause || "",
+            inheritedBy: top.slice(0, 2).map(t => t.id),
+          })),
+          born: newAgents.map((a) => ({
+            id: a.id,
+            name: a.name,
+            fitness: a.fitness,
+            parentIds: a.parentIds || [],
+          })),
+          avgFitnessBefore: Math.round(avgBefore * 10) / 10,
+          avgFitnessAfter: Math.round(avgAfter * 10) / 10,
+          topFitness: Math.round(topFit * 10) / 10,
+        });
+
+        return allNext;
       });
 
       setCurrentGen((g) => g + 1);
@@ -244,6 +282,11 @@ export default function Index() {
           </div>
         </div>
       </main>
+
+      <GenerationSummaryModal
+        summary={generationSummary}
+        onClose={() => setGenerationSummary(null)}
+      />
     </div>
   );
 }
