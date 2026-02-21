@@ -162,6 +162,7 @@ export default function Landing() {
                 <span className="h-2.5 w-2.5 rounded-full bg-apex-amber/60" />
                 <span className="h-2.5 w-2.5 rounded-full bg-primary/60" />
                 <span className="ml-3 text-[10px] font-mono text-muted-foreground">apex-evolution — dashboard</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground/60">/dashboard</span>
               </div>
               <img
                 src={dashboardPreview}
