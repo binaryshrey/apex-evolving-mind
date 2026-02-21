@@ -66,6 +66,8 @@ export default function Index() {
   const [trades, setTrades] = useState<TradeRecord[]>([]);
   const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null);
   const [isMarketLoading, setIsMarketLoading] = useState(false);
+  const [showExtinct, setShowExtinct] = useState(false);
+  const INITIAL_VISIBLE = 12;
 
   // ─── Load all data from DB on mount ───
   useEffect(() => {
@@ -483,21 +485,47 @@ export default function Index() {
                 })}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <AnimatePresence mode="popLayout">
-                  {[...agents]
-                    .sort((a, b) => {
-                      const order = { newborn: 0, breeding: 1, active: 2, extinct: 3 };
-                      const diff = order[a.status] - order[b.status];
-                      if (diff !== 0) return diff;
-                      return b.generation - a.generation || b.fitness - a.fitness;
-                    })
-                    .filter(a => agentFilter === "all" || a.status === agentFilter)
-                    .map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} />
-                    ))}
-                </AnimatePresence>
-              </div>
+              {(() => {
+                const sorted = [...agents]
+                  .sort((a, b) => {
+                    const order = { newborn: 0, breeding: 1, active: 2, extinct: 3 };
+                    const diff = order[a.status] - order[b.status];
+                    if (diff !== 0) return diff;
+                    return b.generation - a.generation || b.fitness - a.fitness;
+                  })
+                  .filter(a => agentFilter === "all" || a.status === agentFilter);
+                
+                const visible = showExtinct ? sorted : sorted.slice(0, INITIAL_VISIBLE);
+                const hiddenCount = sorted.length - INITIAL_VISIBLE;
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <AnimatePresence mode="popLayout">
+                        {visible.map((agent) => (
+                          <AgentCard key={agent.id} agent={agent} />
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                    {!showExtinct && hiddenCount > 0 && (
+                      <button
+                        onClick={() => setShowExtinct(true)}
+                        className="mt-3 w-full rounded-lg border border-border bg-secondary/50 px-4 py-2.5 text-xs font-mono font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      >
+                        Load {hiddenCount} more agents (including extinct)
+                      </button>
+                    )}
+                    {showExtinct && sorted.length > INITIAL_VISIBLE && (
+                      <button
+                        onClick={() => setShowExtinct(false)}
+                        className="mt-3 w-full rounded-lg border border-border bg-secondary/50 px-4 py-2.5 text-xs font-mono font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      >
+                        Show less
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4">
