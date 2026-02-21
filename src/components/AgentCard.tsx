@@ -1,6 +1,7 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { AgentGenome } from "@/data/types";
-import { Skull, Sparkles, TrendingUp, Shield, Activity, Shuffle, Dna } from "lucide-react";
+import { Skull, Sparkles, TrendingUp, Shield, Activity, Shuffle, Dna, Info, X } from "lucide-react";
 
 const archetypeIcons = {
   momentum: TrendingUp,
@@ -18,12 +19,21 @@ const archetypeColors: Record<string, string> = {
   hybrid: "text-muted-foreground",
 };
 
+const genomeLabels: { key: keyof AgentGenome["genome"]; label: string; short: string }[] = [
+  { key: "entryLogic", label: "Entry Logic", short: "ENT" },
+  { key: "exitDiscipline", label: "Exit Discipline", short: "EXT" },
+  { key: "riskTolerance", label: "Risk Tolerance", short: "RSK" },
+  { key: "positionSizing", label: "Position Sizing", short: "POS" },
+  { key: "indicatorWeight", label: "Indicator Weight", short: "IND" },
+];
+
 interface AgentCardProps {
   agent: AgentGenome;
   onClick?: () => void;
 }
 
 export default function AgentCard({ agent, onClick }: AgentCardProps) {
+  const [showGenome, setShowGenome] = useState(false);
   const Icon = archetypeIcons[agent.archetype];
   const isAlive = agent.status === "active" || agent.status === "newborn";
   const isNewborn = agent.status === "newborn";
@@ -38,7 +48,7 @@ export default function AgentCard({ agent, onClick }: AgentCardProps) {
         scale: 1,
       }}
       exit={{ opacity: 0, scale: 0.8 }}
-      whileHover={{ scale: 1.03 }}
+      whileHover={{ scale: 1.02 }}
       onClick={onClick}
       className={`
         relative cursor-pointer rounded-lg border p-3 transition-colors
@@ -59,55 +69,134 @@ export default function AgentCard({ agent, onClick }: AgentCardProps) {
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <span className="font-mono text-[10px] text-muted-foreground">{agent.id}</span>
-        <span className="font-mono text-[10px] text-muted-foreground">G{agent.generation}</span>
+        <div className="flex items-center gap-1.5">
+          <Icon className={`h-3.5 w-3.5 ${archetypeColors[agent.archetype]}`} />
+          <span className="text-xs font-medium truncate max-w-[100px]">{agent.name}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px] text-muted-foreground">{agent.id}</span>
+          <span className="font-mono text-[9px] px-1 py-0.5 rounded bg-secondary text-secondary-foreground">G{agent.generation}</span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-2">
-        <Icon className={`h-3.5 w-3.5 ${archetypeColors[agent.archetype]}`} />
-        <span className="text-xs font-medium truncate">{agent.name}</span>
+      {/* Archetype badge */}
+      <div className="mb-2">
+        <span className={`text-[10px] font-mono uppercase tracking-wider ${archetypeColors[agent.archetype]}`}>
+          {agent.archetype}
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+      {/* Stats grid */}
+      <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 mb-2">
         <div>
-          <div className="text-[10px] text-muted-foreground">Fitness</div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Fitness</div>
           <div className={`text-sm font-mono font-semibold ${agent.fitness > 60 ? "text-primary" : agent.fitness > 35 ? "text-apex-amber" : "text-destructive"}`}>
             {agent.fitness.toFixed(1)}
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground">Sharpe</div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Sharpe</div>
           <div className={`text-sm font-mono font-semibold ${agent.sharpe > 1 ? "text-primary" : agent.sharpe > 0 ? "text-foreground" : "text-destructive"}`}>
             {agent.sharpe.toFixed(2)}
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground">Win%</div>
-          <div className="text-xs font-mono text-foreground">{agent.winRate}%</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-muted-foreground">Return</div>
-          <div className={`text-xs font-mono ${agent.totalReturn > 0 ? "text-primary" : "text-destructive"}`}>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Return</div>
+          <div className={`text-sm font-mono font-semibold ${agent.totalReturn > 0 ? "text-primary" : "text-destructive"}`}>
             {agent.totalReturn > 0 ? "+" : ""}{agent.totalReturn}%
           </div>
         </div>
+        <div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Win%</div>
+          <div className="text-xs font-mono text-foreground">{agent.winRate}%</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">MaxDD</div>
+          <div className="text-xs font-mono text-destructive">-{agent.maxDrawdown}%</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Trades</div>
+          <div className="text-xs font-mono text-foreground">{agent.trades}</div>
+        </div>
       </div>
 
-      {/* Mini genome bar */}
-      <div className="mt-2 flex gap-0.5 h-1">
-        {Object.values(agent.genome).map((val, i) => (
-          <div
-            key={i}
-            className="flex-1 rounded-full bg-primary/20"
+      {/* Genome bars with labels */}
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Genome</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowGenome(!showGenome); }}
+            className="p-0.5 rounded hover:bg-secondary transition-colors"
           >
-            <div
-              className="h-full rounded-full bg-primary/60"
-              style={{ width: `${val * 100}%` }}
-            />
+            {showGenome ? (
+              <X className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <Info className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+            )}
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showGenome ? (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden space-y-1"
+            >
+              {genomeLabels.map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[9px] text-muted-foreground w-20 truncate">{label}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-primary/10">
+                    <div
+                      className="h-full rounded-full bg-primary/60"
+                      style={{ width: `${agent.genome[key] * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] font-mono text-muted-foreground w-7 text-right">
+                    {(agent.genome[key] * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </motion.div>
+          ) : (
+            <div className="flex gap-0.5 h-1">
+              {genomeLabels.map(({ key, short }) => (
+                <div key={key} className="flex-1 relative group">
+                  <div className="h-full rounded-full bg-primary/10">
+                    <div
+                      className="h-full rounded-full bg-primary/60"
+                      style={{ width: `${agent.genome[key] * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Compact labels under bars */}
+        {!showGenome && (
+          <div className="flex gap-0.5">
+            {genomeLabels.map(({ short, key }) => (
+              <span key={key} className="flex-1 text-center text-[7px] text-muted-foreground font-mono">
+                {short}
+              </span>
+            ))}
           </div>
-        ))}
+        )}
       </div>
+
+      {/* Parent lineage */}
+      {agent.parentIds && agent.parentIds.length > 0 && (
+        <div className="mt-2 pt-1.5 border-t border-border/50">
+          <span className="text-[8px] text-muted-foreground font-mono">
+            Parents: {agent.parentIds.join(" × ")}
+          </span>
+        </div>
+      )}
     </motion.div>
   );
 }

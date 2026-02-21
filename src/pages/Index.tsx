@@ -308,7 +308,7 @@ export default function Index() {
                   {activeAgents.length} alive · {extinctAgents.length} extinct
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <AnimatePresence mode="popLayout">
                   {agents.slice(0, 40).map((agent) => (
                     <AgentCard key={agent.id} agent={agent} />
