@@ -38,7 +38,7 @@ export default function TradeHistoryLog({ trades }: TradeHistoryLogProps) {
               No trades yet. Run a generation to generate simulated trades.
             </div>
           ) : (
-            trades.slice(0, 30).map((trade, i) => {
+            trades.map((trade, i) => {
               const Icon = actionIcons[trade.action] || Minus;
               const isProfit = trade.pnl > 0;
               return (
