@@ -8,6 +8,7 @@ import {
   fetchPostMortems, insertPostMortems,
   fetchEnvironment, updateEnvironment,
   fetchBehavioralGenome,
+  fetchPortfolio, insertPortfolioSnapshot,
 } from "@/lib/dbClient";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -19,6 +20,10 @@ import SpeciesMap from "@/components/SpeciesMap";
 import EnvironmentPanel from "@/components/EnvironmentPanel";
 import GenerationControls from "@/components/GenerationControls";
 import GenerationSummaryModal from "@/components/GenerationSummaryModal";
+import PortfolioWidget, { PortfolioState } from "@/components/PortfolioWidget";
+import PerformanceLeaderboard from "@/components/PerformanceLeaderboard";
+import StrategyAllocation from "@/components/StrategyAllocation";
+import GuidedTour from "@/components/GuidedTour";
 import { Dna, Activity, Brain, Loader2 } from "lucide-react";
 
 export default function Index() {
@@ -32,6 +37,8 @@ export default function Index() {
   const [currentGen, setCurrentGen] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showTour, setShowTour] = useState(false);
+  const [portfolio, setPortfolio] = useState<PortfolioState>({ capital: 100000, pnl: 0, pnlPercent: 0, generation: 0 });
   const [generationSummary, setGenerationSummary] = useState<{
     generation: number;
     culled: { id: string; name: string; fitness: number; cause: string; inheritedBy: string[] }[];
@@ -39,6 +46,8 @@ export default function Index() {
     avgFitnessBefore: number;
     avgFitnessAfter: number;
     topFitness: number;
+    capitalBefore: number;
+    capitalAfter: number;
   } | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentState>({
     regime: "trending", volatility: "medium", earningsActive: false, macroEvent: false, sentiment: 0.34,
@@ -49,13 +58,13 @@ export default function Index() {
     async function loadData() {
       setIsLoading(true);
       try {
-        // Load all data in parallel
-        const [dbAgents, dbGens, dbPMs, dbEnv, dbBehavior] = await Promise.all([
+        const [dbAgents, dbGens, dbPMs, dbEnv, dbBehavior, dbPortfolio] = await Promise.all([
           fetchAgents(),
           fetchGenerations(),
           fetchPostMortems(),
           fetchEnvironment(),
           fetchBehavioralGenome(),
+          fetchPortfolio().catch(() => ({ capital: 100000, pnl: 0, pnlPercent: 0, generation: 0 })),
         ]);
 
         if (dbAgents.length > 0) {
@@ -64,22 +73,25 @@ export default function Index() {
           setPostMortems(dbPMs);
           setEnvironment(dbEnv);
           setBehavior(dbBehavior);
+          setPortfolio(dbPortfolio);
           setCurrentGen(dbGens.length > 0 ? Math.max(...dbGens.map(g => g.gen)) : 0);
+          
+          // Show tour on first visit
+          const hasSeenTour = localStorage.getItem("apex-tour-seen");
+          if (!hasSeenTour) setShowTour(true);
         } else {
-          // No agents in DB — generate via Airia/AI
           toast({ title: "Initializing Population", description: "Generating 40 trading agents via AI..." });
           const { data, error } = await supabase.functions.invoke("generate-population");
           if (error) throw error;
           
-          // Reload from DB after generation
           const [newAgents, newGens] = await Promise.all([fetchAgents(), fetchGenerations()]);
           setAgents(newAgents);
           setGenHistory(newGens);
           setCurrentGen(0);
+          setShowTour(true);
           toast({ title: "Population Ready", description: `${newAgents.length} AI-generated agents deployed.` });
         }
 
-        // Fetch real market data
         supabase.functions.invoke("fetch-market-data").then(async ({ data }) => {
           if (data?.regime) {
             const freshEnv = await fetchEnvironment();
@@ -161,8 +173,15 @@ export default function Index() {
       const activeNext = allNext.filter(a => a.status !== "extinct");
       const avgAfter = activeNext.reduce((s, a) => s + a.fitness, 0) / activeNext.length;
       const topFit = Math.max(...activeNext.map(a => a.fitness));
+      const topAgent = activeNext.reduce((best, a) => a.fitness > best.fitness ? a : best, activeNext[0]);
 
-      // Persist everything to DB in parallel
+      // Calculate portfolio change based on agent performance
+      const capitalBefore = portfolio.capital;
+      const performanceMultiplier = (avgAfter - avgBefore) / 100;
+      const newCapital = Math.round(capitalBefore * (1 + performanceMultiplier));
+      const totalPnl = newCapital - 100000;
+      const totalPnlPercent = ((newCapital - 100000) / 100000) * 100;
+
       const genData = {
         gen: currentGen + 1,
         avgFitness: Math.round(avgAfter * 10) / 10,
@@ -177,7 +196,19 @@ export default function Index() {
         upsertAgents(newAgents),
         insertPostMortems(newPostMortems),
         insertGeneration(genData),
+        insertPortfolioSnapshot({
+          generation: currentGen + 1,
+          capital: newCapital,
+          pnl: totalPnl,
+          pnlPercent: Math.round(totalPnlPercent * 100) / 100,
+          topAgentId: topAgent?.id,
+          topAgentName: topAgent?.name,
+          avgFitnessBefore: Math.round(avgBefore * 10) / 10,
+          avgFitnessAfter: Math.round(avgAfter * 10) / 10,
+        }),
       ]);
+
+      setPortfolio({ capital: newCapital, pnl: totalPnl, pnlPercent: Math.round(totalPnlPercent * 100) / 100, generation: currentGen + 1 });
 
       setGenerationSummary({
         generation: currentGen + 1,
@@ -190,6 +221,8 @@ export default function Index() {
         avgFitnessBefore: Math.round(avgBefore * 10) / 10,
         avgFitnessAfter: Math.round(avgAfter * 10) / 10,
         topFitness: Math.round(topFit * 10) / 10,
+        capitalBefore,
+        capitalAfter: newCapital,
       });
 
       setAgents(allNext);
@@ -206,7 +239,7 @@ export default function Index() {
     } finally {
       setIsRunning(false);
     }
-  }, [agents, currentGen, environment, behavior]);
+  }, [agents, currentGen, environment, behavior, portfolio]);
 
   const handleRegimeChange = useCallback(async (regime: EnvironmentState["regime"]) => {
     const newEnv: EnvironmentState = {
@@ -242,6 +275,11 @@ export default function Index() {
       console.error("Behavior update failed:", err);
       toast({ title: "Override Failed", description: "Could not update behavioral genome.", variant: "destructive" });
     }
+  }, []);
+
+  const handleCloseTour = useCallback(() => {
+    setShowTour(false);
+    localStorage.setItem("apex-tour-seen", "true");
   }, []);
 
   if (isLoading) {
@@ -296,7 +334,18 @@ export default function Index() {
           onRunGeneration={runGeneration}
           activeCount={activeAgents.length}
           extinctCount={extinctAgents.length}
+          onShowTour={() => setShowTour(true)}
         />
+
+        {/* Portfolio + Allocation row */}
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 md:col-span-4">
+            <PortfolioWidget portfolio={portfolio} isRunning={isRunning} />
+          </div>
+          <div className="col-span-12 md:col-span-8">
+            <StrategyAllocation agents={agents} totalCapital={portfolio.capital} />
+          </div>
+        </div>
 
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 lg:col-span-8 space-y-4">
@@ -329,6 +378,8 @@ export default function Index() {
           </div>
 
           <div className="col-span-12 lg:col-span-4 space-y-4">
+            <PerformanceLeaderboard agents={agents} />
+
             <div className="rounded-xl border border-border bg-card p-4">
               <EnvironmentPanel environment={environment} onRegimeChange={handleRegimeChange} />
             </div>
@@ -356,6 +407,8 @@ export default function Index() {
         summary={generationSummary}
         onClose={() => setGenerationSummary(null)}
       />
+
+      <GuidedTour isOpen={showTour} onClose={handleCloseTour} />
     </div>
   );
 }
