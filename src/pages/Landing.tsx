@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, Zap, Brain, TrendingUp, Shield, Activity, BarChart3, Dna, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import OnboardingModal from "@/components/OnboardingModal";
 import dashboardPreview from "@/assets/dashboard-preview.png";
 
 const logos = [
@@ -53,8 +55,11 @@ const features = [
 ];
 
 export default function Landing() {
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
       {/* ── Navbar ── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
@@ -139,8 +144,8 @@ export default function Landing() {
             transition={{ delay: 0.3 }}
             className="mt-10 flex items-center justify-center gap-4"
           >
-            <Button size="lg" asChild className="font-semibold">
-              <Link to="/dashboard">Get Started</Link>
+            <Button size="lg" onClick={() => setShowOnboarding(true)} className="font-semibold">
+              Get Started
             </Button>
             <Button variant="ghost" size="lg" asChild className="text-muted-foreground">
               <a href="#features">
@@ -271,10 +276,8 @@ export default function Landing() {
           <p className="mt-4 text-muted-foreground">
             Launch your first generation of AI trading agents in minutes.
           </p>
-          <Button size="lg" asChild className="mt-8 font-semibold">
-            <Link to="/dashboard">
-              Enter Dashboard <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+          <Button size="lg" onClick={() => setShowOnboarding(true)} className="mt-8 font-semibold">
+            Get Started <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </section>
