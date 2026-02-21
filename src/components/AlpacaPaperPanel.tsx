@@ -38,7 +38,7 @@ interface Props {
   portfolio: PortfolioData;
 }
 
-export default function AlpacaPaperPanel({ portfolio }: Props) {
+export default function AlpacaPaperPanel({ portfolio = { capital: 100000, pnl: 0, pnlPercent: 0, generation: 0 } }: Props) {
   const [positions, setPositions] = useState<AlpacaPosition[]>([]);
   const [orders, setOrders] = useState<AlpacaOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
