@@ -218,10 +218,32 @@ export default function Index() {
       const rawSize = agent.genome.positionSizing * beh.riskTolerance * volMultiplier;
       const quantity = Math.round(Math.max(0.01, rawSize * 10) * 100) / 100;
 
-      // PnL influenced by fitness, environment alignment, and conviction
-      const envAlignment = action === "buy" && buyBias > 0 ? 1.2 : action === "sell" && buyBias < 0 ? 1.2 : 0.7;
-      const pnlMultiplier = (agent.fitness / 100) * (Math.random() * 2 - 0.5) * envAlignment;
-      const pnl = Math.round(basePrice * rawSize * pnlMultiplier * 100) / 100;
+      // ─── Realistic P&L simulation ───
+      // Use Box-Muller transform for normally distributed returns (mean=0, std=1)
+      const u1 = Math.random();
+      const u2 = Math.random();
+      const normalRandom = Math.sqrt(-2 * Math.log(Math.max(u1, 1e-10))) * Math.cos(2 * Math.PI * u2);
+
+      // Base volatility per asset class (realistic daily move %)
+      const assetVolatility: Record<string, number> = {
+        BTC: 0.035, ETH: 0.045, SOL: 0.06, ADA: 0.065, AVAX: 0.055, DOT: 0.055,
+      };
+      const baseVol = assetVolatility[asset] || 0.04;
+
+      // Environment amplifies/dampens volatility
+      const envVolScale = env.volatility === "high" ? 1.8 : env.volatility === "medium" ? 1.2 : 0.8;
+
+      // Slight edge for well-aligned agents (fitness & environment match)
+      // But this edge is SMALL — max ~2% bias, not guaranteed profit
+      const alignmentEdge = action === "buy" && buyBias > 0 ? 0.02 : action === "sell" && buyBias < 0 ? 0.02 : -0.01;
+      const fitnessEdge = ((agent.fitness - 80) / 100) * 0.01; // top agents get ~0.1-0.3% edge
+
+      // Final return: normally distributed with slight skill edge
+      const returnPct = normalRandom * baseVol * envVolScale + alignmentEdge + fitnessEdge;
+
+      // P&L from return percentage — can be significantly negative
+      const directionMultiplier = action === "sell" ? -1 : 1; // sells profit from price drops
+      const pnl = Math.round(basePrice * rawSize * returnPct * directionMultiplier * 100) / 100;
 
       // Build detailed rationale
       const regimeNote = `${env.regime} regime (vol: ${env.volatility}, sentiment: ${env.sentiment > 0 ? "+" : ""}${env.sentiment.toFixed(2)})`;
