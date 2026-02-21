@@ -168,7 +168,7 @@ export default function Landing() {
                 <iframe
                   src="/dashboard"
                   title="APEX Evolution Dashboard"
-                  className="w-full h-full border-0 pointer-events-none"
+                  className="w-full h-full border-0"
                   style={{ transform: "scale(0.55)", transformOrigin: "top left", width: "182%", height: "182%" }}
                 />
               </div>
