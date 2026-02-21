@@ -171,8 +171,9 @@ export default function Index() {
         diversity: Math.round((0.6 + Math.random() * 0.3) * 100) / 100,
       };
 
+      // Serialize agent upserts to avoid deadlocks
+      await upsertAgents(updated);
       await Promise.all([
-        upsertAgents(updated),
         upsertAgents(newAgents),
         insertPostMortems(newPostMortems),
         insertGeneration(genData),
