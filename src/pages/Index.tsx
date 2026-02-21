@@ -46,6 +46,7 @@ interface GenSummary {
 }
 
 export default function Index() {
+  const [agentFilter, setAgentFilter] = useState<"all" | "newborn" | "active" | "breeding" | "extinct">("all");
   const [agents, setAgents] = useState<AgentGenome[]>([]);
   const [postMortems, setPostMortems] = useState<PostMortem[]>([]);
   const [behavior, setBehavior] = useState<BehavioralGenome>({
@@ -461,11 +462,40 @@ export default function Index() {
                   {activeAgents.length} alive · {extinctAgents.length} extinct
                 </span>
               </div>
+
+              {/* Status filter */}
+              <div className="flex gap-1 flex-wrap">
+                {(["all", "newborn", "active", "breeding", "extinct"] as const).map((f) => {
+                  const count = f === "all" ? agents.length : agents.filter(a => a.status === f).length;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setAgentFilter(f)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-medium transition-colors border ${
+                        agentFilter === f
+                          ? "bg-primary/20 text-primary border-primary/30"
+                          : "bg-secondary text-muted-foreground border-transparent hover:text-foreground"
+                      }`}
+                    >
+                      {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <AnimatePresence mode="popLayout">
-                  {agents.slice(0, 40).map((agent) => (
-                    <AgentCard key={agent.id} agent={agent} />
-                  ))}
+                  {[...agents]
+                    .sort((a, b) => {
+                      const order = { newborn: 0, breeding: 1, active: 2, extinct: 3 };
+                      const diff = order[a.status] - order[b.status];
+                      if (diff !== 0) return diff;
+                      return b.generation - a.generation || b.fitness - a.fitness;
+                    })
+                    .filter(a => agentFilter === "all" || a.status === agentFilter)
+                    .map((agent) => (
+                      <AgentCard key={agent.id} agent={agent} />
+                    ))}
                 </AnimatePresence>
               </div>
             </div>
