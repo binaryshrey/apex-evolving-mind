@@ -41,7 +41,7 @@ export default function PortfolioWidget({ portfolio, isRunning }: PortfolioWidge
     }
   }, []);
 
-  useEffect(() => { fetchAlpaca(); }, [fetchAlpaca]);
+  useEffect(() => { fetchAlpaca(); }, [fetchAlpaca, portfolio.generation]);
 
   const equity = alpaca?.equity ?? portfolio.capital;
   const pnl = alpaca?.pnl ?? portfolio.pnl;
