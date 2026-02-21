@@ -18,7 +18,7 @@ import AgentCard from "@/components/AgentCard";
 import PostMortemFeed from "@/components/PostMortemFeed";
 import BehavioralRadar from "@/components/BehavioralRadar";
 import GenerationChart from "@/components/GenerationChart";
-import SpeciesMap from "@/components/SpeciesMap";
+
 import EnvironmentPanel from "@/components/EnvironmentPanel";
 import GenerationControls from "@/components/GenerationControls";
 import GenerationSummaryModal from "@/components/GenerationSummaryModal";
@@ -500,13 +500,8 @@ export default function Index() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-border bg-card p-4">
-                <GenerationChart data={genHistory} />
-              </div>
-              <div className="rounded-xl border border-border bg-card p-4">
-                <SpeciesMap agents={agents} />
-              </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <GenerationChart data={genHistory} />
             </div>
 
             {/* Trade History */}

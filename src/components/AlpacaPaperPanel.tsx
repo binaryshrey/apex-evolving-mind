@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { DollarSign, TrendingUp, TrendingDown, Briefcase, BarChart3, RefreshCw, Zap } from "lucide-react";
@@ -63,6 +63,8 @@ export default function AlpacaPaperPanel() {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => { fetchData(); }, []);
 
   const tabs = [
     { key: "account" as const, label: "Account", icon: Briefcase },
