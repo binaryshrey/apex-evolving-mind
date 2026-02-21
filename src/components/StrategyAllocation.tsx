@@ -1,10 +1,12 @@
 import { useMemo } from "react";
-import { AgentGenome } from "@/data/types";
+import { AgentGenome, EnvironmentState, BehavioralGenome } from "@/data/types";
 import { PieChart, TrendingUp, Shield, Activity, Shuffle, Dna } from "lucide-react";
 
 interface StrategyAllocationProps {
   agents: AgentGenome[];
   totalCapital: number;
+  environment?: EnvironmentState;
+  behavioralDna?: BehavioralGenome;
 }
 
 const archetypeConfig: Record<string, { icon: any; color: string; label: string }> = {
@@ -15,7 +17,40 @@ const archetypeConfig: Record<string, { icon: any; color: string; label: string 
   hybrid: { icon: Dna, color: "bg-muted-foreground/20 text-muted-foreground border-muted-foreground/30", label: "Hybrid" },
 };
 
-export default function StrategyAllocation({ agents, totalCapital }: StrategyAllocationProps) {
+// Environment-archetype synergy multipliers
+function getEnvironmentBoost(archetype: string, env?: EnvironmentState): number {
+  if (!env) return 1;
+  const boosts: Record<string, Record<string, number>> = {
+    momentum:        { "trending": 1.4, "risk-on": 1.3, "choppy": 0.7, "risk-off": 0.6 },
+    defensive:       { "trending": 0.8, "risk-on": 0.7, "choppy": 1.1, "risk-off": 1.5 },
+    volatility:      { "trending": 0.9, "risk-on": 1.1, "choppy": 1.3, "risk-off": 1.0 },
+    "mean-reversion":{ "trending": 0.7, "risk-on": 0.9, "choppy": 1.4, "risk-off": 1.1 },
+    hybrid:          { "trending": 1.1, "risk-on": 1.1, "choppy": 1.1, "risk-off": 1.0 },
+  };
+  const volScale = env.volatility === "high" ? 0.9 : env.volatility === "low" ? 1.1 : 1.0;
+  return (boosts[archetype]?.[env.regime] || 1) * volScale;
+}
+
+// Behavioral DNA preference multipliers
+function getBehavioralBoost(archetype: string, beh?: BehavioralGenome): number {
+  if (!beh) return 1;
+  switch (archetype) {
+    case "momentum":
+      return 1 + (beh.momentumBias - 0.5) * 0.6 + (beh.riskTolerance - 0.5) * 0.3;
+    case "defensive":
+      return 1 + (beh.drawdownSensitivity - 0.5) * 0.5 + (0.5 - beh.riskTolerance) * 0.3;
+    case "volatility":
+      return 1 + (beh.riskTolerance - 0.5) * 0.5 + (0.5 - beh.drawdownSensitivity) * 0.3;
+    case "mean-reversion":
+      return 1 + (beh.holdingPatience - 0.5) * 0.5 + (0.5 - beh.momentumBias) * 0.3;
+    case "hybrid":
+      return 1 + (beh.holdingPatience - 0.5) * 0.2; // mild preference
+    default:
+      return 1;
+  }
+}
+
+export default function StrategyAllocation({ agents, totalCapital, environment, behavioralDna }: StrategyAllocationProps) {
   const allocations = useMemo(() => {
     const active = agents.filter(a => a.status !== "extinct");
     const totalFitness = active.reduce((s, a) => s + Math.max(a.fitness, 0), 0);
@@ -26,12 +61,14 @@ export default function StrategyAllocation({ agents, totalCapital }: StrategyAll
       if (!byArchetype[a.archetype]) {
         byArchetype[a.archetype] = { count: 0, totalScore: 0, avgSharpe: 0, avgWinRate: 0 };
       }
-      // Use fitness² × (1 + sharpe) to amplify differences between archetypes
       const fit = Math.max(a.fitness, 0);
       const sharpeBoost = 1 + Math.max(a.sharpe, 0);
       const winBoost = 1 + (a.winRate / 100);
+      // Apply environment synergy and behavioral DNA preference
+      const envBoost = getEnvironmentBoost(a.archetype, environment);
+      const behBoost = getBehavioralBoost(a.archetype, behavioralDna);
       byArchetype[a.archetype].count++;
-      byArchetype[a.archetype].totalScore += (fit * fit) * sharpeBoost * winBoost;
+      byArchetype[a.archetype].totalScore += (fit * fit) * sharpeBoost * winBoost * envBoost * behBoost;
       byArchetype[a.archetype].avgSharpe += a.sharpe;
       byArchetype[a.archetype].avgWinRate += a.winRate;
     });
@@ -48,7 +85,7 @@ export default function StrategyAllocation({ agents, totalCapital }: StrategyAll
         avgSharpe: data.avgSharpe / data.count,
       }))
       .sort((a, b) => b.allocationPercent - a.allocationPercent);
-  }, [agents, totalCapital]);
+  }, [agents, totalCapital, environment, behavioralDna]);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
