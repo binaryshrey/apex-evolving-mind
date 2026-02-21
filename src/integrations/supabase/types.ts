@@ -14,7 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agents: {
+        Row: {
+          archetype: string
+          created_at: string
+          fitness: number
+          generation: number
+          genome_entry_logic: number
+          genome_exit_discipline: number
+          genome_indicator_weight: number
+          genome_position_sizing: number
+          genome_risk_tolerance: number
+          id: string
+          max_drawdown: number
+          name: string
+          parent_ids: string[] | null
+          sharpe: number
+          status: string
+          total_return: number
+          trades: number
+          updated_at: string
+          win_rate: number
+        }
+        Insert: {
+          archetype: string
+          created_at?: string
+          fitness?: number
+          generation?: number
+          genome_entry_logic?: number
+          genome_exit_discipline?: number
+          genome_indicator_weight?: number
+          genome_position_sizing?: number
+          genome_risk_tolerance?: number
+          id: string
+          max_drawdown?: number
+          name: string
+          parent_ids?: string[] | null
+          sharpe?: number
+          status?: string
+          total_return?: number
+          trades?: number
+          updated_at?: string
+          win_rate?: number
+        }
+        Update: {
+          archetype?: string
+          created_at?: string
+          fitness?: number
+          generation?: number
+          genome_entry_logic?: number
+          genome_exit_discipline?: number
+          genome_indicator_weight?: number
+          genome_position_sizing?: number
+          genome_risk_tolerance?: number
+          id?: string
+          max_drawdown?: number
+          name?: string
+          parent_ids?: string[] | null
+          sharpe?: number
+          status?: string
+          total_return?: number
+          trades?: number
+          updated_at?: string
+          win_rate?: number
+        }
+        Relationships: []
+      }
+      behavioral_genome: {
+        Row: {
+          drawdown_sensitivity: number
+          earnings_avoidance: number
+          holding_patience: number
+          id: number
+          momentum_bias: number
+          risk_tolerance: number
+          updated_at: string
+        }
+        Insert: {
+          drawdown_sensitivity?: number
+          earnings_avoidance?: number
+          holding_patience?: number
+          id?: number
+          momentum_bias?: number
+          risk_tolerance?: number
+          updated_at?: string
+        }
+        Update: {
+          drawdown_sensitivity?: number
+          earnings_avoidance?: number
+          holding_patience?: number
+          id?: number
+          momentum_bias?: number
+          risk_tolerance?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      environment_state: {
+        Row: {
+          earnings_active: boolean
+          id: number
+          macro_event: boolean
+          regime: string
+          sentiment: number
+          updated_at: string
+          volatility: string
+        }
+        Insert: {
+          earnings_active?: boolean
+          id?: number
+          macro_event?: boolean
+          regime?: string
+          sentiment?: number
+          updated_at?: string
+          volatility?: string
+        }
+        Update: {
+          earnings_active?: boolean
+          id?: number
+          macro_event?: boolean
+          regime?: string
+          sentiment?: number
+          updated_at?: string
+          volatility?: string
+        }
+        Relationships: []
+      }
+      generations: {
+        Row: {
+          avg_fitness: number
+          created_at: string
+          diversity: number
+          gen: number
+          id: number
+          population: number
+          top_fitness: number
+        }
+        Insert: {
+          avg_fitness?: number
+          created_at?: string
+          diversity?: number
+          gen: number
+          id?: number
+          population?: number
+          top_fitness?: number
+        }
+        Update: {
+          avg_fitness?: number
+          created_at?: string
+          diversity?: number
+          gen?: number
+          id?: number
+          population?: number
+          top_fitness?: number
+        }
+        Relationships: []
+      }
+      post_mortems: {
+        Row: {
+          agent_id: string
+          agent_name: string
+          cause: string
+          created_at: string
+          fitness_at_death: number
+          generation: number
+          id: string
+          inherited_by: string[]
+        }
+        Insert: {
+          agent_id: string
+          agent_name: string
+          cause: string
+          created_at?: string
+          fitness_at_death?: number
+          generation: number
+          id: string
+          inherited_by?: string[]
+        }
+        Update: {
+          agent_id?: string
+          agent_name?: string
+          cause?: string
+          created_at?: string
+          fitness_at_death?: number
+          generation?: number
+          id?: string
+          inherited_by?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_mortems_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

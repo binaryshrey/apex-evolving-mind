@@ -1,8 +1,15 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AgentGenome, EnvironmentState, PostMortem } from "@/data/types";
-import { generateAgents, initialPostMortems, behavioralGenome, generationHistory } from "@/data/agentData";
+import { AgentGenome, EnvironmentState, PostMortem, BehavioralGenome } from "@/data/types";
 import { callAiriaEvolve } from "@/lib/airiaClient";
+import {
+  fetchAgents, upsertAgents, insertAgents,
+  fetchGenerations, insertGeneration,
+  fetchPostMortems, insertPostMortems,
+  fetchEnvironment, updateEnvironment,
+  fetchBehavioralGenome,
+} from "@/lib/dbClient";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import AgentCard from "@/components/AgentCard";
 import PostMortemFeed from "@/components/PostMortemFeed";
@@ -12,22 +19,19 @@ import SpeciesMap from "@/components/SpeciesMap";
 import EnvironmentPanel from "@/components/EnvironmentPanel";
 import GenerationControls from "@/components/GenerationControls";
 import GenerationSummaryModal from "@/components/GenerationSummaryModal";
-import { Dna, Activity, Brain } from "lucide-react";
-
-const strategies = [
-  "Momentum Alpha", "Mean Reversion", "Breakout Hunter", "Volatility Arbitrage",
-  "Trend Follower", "Scalp Master", "Swing Trader", "Gap Fill", "RSI Divergence",
-  "MACD Crossover",
-];
-const archetypes: AgentGenome["archetype"][] = ["momentum", "defensive", "volatility", "mean-reversion", "hybrid"];
+import { Dna, Activity, Brain, Loader2 } from "lucide-react";
 
 export default function Index() {
-  const [agents, setAgents] = useState<AgentGenome[]>(() => generateAgents(40));
-  const [postMortems, setPostMortems] = useState<PostMortem[]>(initialPostMortems);
-  const [behavior, setBehavior] = useState(behavioralGenome);
-  const [genHistory, setGenHistory] = useState(generationHistory);
-  const [currentGen, setCurrentGen] = useState(3);
+  const [agents, setAgents] = useState<AgentGenome[]>([]);
+  const [postMortems, setPostMortems] = useState<PostMortem[]>([]);
+  const [behavior, setBehavior] = useState<BehavioralGenome>({
+    riskTolerance: 0.62, drawdownSensitivity: 0.78, earningsAvoidance: 0.45,
+    momentumBias: 0.33, holdingPatience: 0.71,
+  });
+  const [genHistory, setGenHistory] = useState<{ gen: number; avgFitness: number; topFitness: number; population: number; diversity: number }[]>([]);
+  const [currentGen, setCurrentGen] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [generationSummary, setGenerationSummary] = useState<{
     generation: number;
     culled: { id: string; name: string; fitness: number; cause: string; inheritedBy: string[] }[];
@@ -37,26 +41,74 @@ export default function Index() {
     topFitness: number;
   } | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentState>({
-    regime: "trending",
-    volatility: "medium",
-    earningsActive: false,
-    macroEvent: false,
-    sentiment: 0.34,
+    regime: "trending", volatility: "medium", earningsActive: false, macroEvent: false, sentiment: 0.34,
   });
+
+  // ─── Load all data from DB on mount ───
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        // Load all data in parallel
+        const [dbAgents, dbGens, dbPMs, dbEnv, dbBehavior] = await Promise.all([
+          fetchAgents(),
+          fetchGenerations(),
+          fetchPostMortems(),
+          fetchEnvironment(),
+          fetchBehavioralGenome(),
+        ]);
+
+        if (dbAgents.length > 0) {
+          setAgents(dbAgents);
+          setGenHistory(dbGens);
+          setPostMortems(dbPMs);
+          setEnvironment(dbEnv);
+          setBehavior(dbBehavior);
+          setCurrentGen(dbGens.length > 0 ? Math.max(...dbGens.map(g => g.gen)) : 0);
+        } else {
+          // No agents in DB — generate via Airia/AI
+          toast({ title: "Initializing Population", description: "Generating 40 trading agents via AI..." });
+          const { data, error } = await supabase.functions.invoke("generate-population");
+          if (error) throw error;
+          
+          // Reload from DB after generation
+          const [newAgents, newGens] = await Promise.all([fetchAgents(), fetchGenerations()]);
+          setAgents(newAgents);
+          setGenHistory(newGens);
+          setCurrentGen(0);
+          toast({ title: "Population Ready", description: `${newAgents.length} AI-generated agents deployed.` });
+        }
+
+        // Fetch real market data
+        supabase.functions.invoke("fetch-market-data").then(async ({ data }) => {
+          if (data?.regime) {
+            const freshEnv = await fetchEnvironment();
+            setEnvironment(freshEnv);
+            toast({ title: "Market Scan", description: data.rationale || `Regime: ${data.regime}` });
+          }
+        }).catch(console.error);
+
+      } catch (err) {
+        console.error("Failed to load data:", err);
+        toast({ title: "Error", description: "Failed to load data from database.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "extinct"), [agents]);
   const extinctAgents = useMemo(() => agents.filter((a) => a.status === "extinct"), [agents]);
 
   const runGeneration = useCallback(async () => {
     setIsRunning(true);
-
     try {
       const sorted = [...agents].filter(a => a.status !== "extinct").sort((a, b) => b.fitness - a.fitness);
       const cullCount = Math.floor(sorted.length * 0.2);
       const bottom = sorted.slice(-cullCount);
       const top = sorted.slice(0, Math.floor(sorted.length * 0.2));
 
-      // Call Airia via edge function
       const airiaResult = await callAiriaEvolve(top, bottom, currentGen, environment, behavior);
 
       if (airiaResult.source === "airia") {
@@ -65,7 +117,6 @@ export default function Index() {
         toast({ title: "Local Fallback", description: "Airia unavailable — used local evolution.", variant: "destructive" });
       }
 
-      // Build post-mortems from Airia response
       const newPostMortems: PostMortem[] = airiaResult.postMortems.map((pm) => ({
         id: `pm-${Date.now()}-${pm.agentId}`,
         agentId: pm.agentId,
@@ -77,7 +128,6 @@ export default function Index() {
         fitnessAtDeath: bottom.find(a => a.id === pm.agentId)?.fitness || 0,
       }));
 
-      // Build new agents from Airia offspring
       const newAgents: AgentGenome[] = airiaResult.offspring.map((child, i) => ({
         id: `AGT-${String(agents.length + i + 1).padStart(3, "0")}`,
         name: child.name,
@@ -94,17 +144,11 @@ export default function Index() {
         genome: child.genome,
       }));
 
-      setPostMortems((pm) => [...newPostMortems, ...pm].slice(0, 10));
-
       const avgBefore = sorted.reduce((s, a) => s + a.fitness, 0) / sorted.length;
 
       const updated = agents.map((a) => {
-        if (bottom.find((c) => c.id === a.id)) {
-          return { ...a, status: "extinct" as const };
-        }
-        if (a.status === "newborn") {
-          return { ...a, status: "active" as const };
-        }
+        if (bottom.find((c) => c.id === a.id)) return { ...a, status: "extinct" as const };
+        if (a.status === "newborn") return { ...a, status: "active" as const };
         return {
           ...a,
           fitness: Math.round((a.fitness + (Math.random() * 6 - 2)) * 10) / 10,
@@ -117,44 +161,43 @@ export default function Index() {
       const avgAfter = activeNext.reduce((s, a) => s + a.fitness, 0) / activeNext.length;
       const topFit = Math.max(...activeNext.map(a => a.fitness));
 
+      // Persist everything to DB in parallel
+      const genData = {
+        gen: currentGen + 1,
+        avgFitness: Math.round(avgAfter * 10) / 10,
+        topFitness: Math.round(topFit * 10) / 10,
+        population: activeNext.length,
+        diversity: Math.round((0.6 + Math.random() * 0.3) * 100) / 100,
+      };
+
+      await Promise.all([
+        upsertAgents(updated),
+        insertAgents(newAgents),
+        insertPostMortems(newPostMortems),
+        insertGeneration(genData),
+      ]);
+
       setGenerationSummary({
         generation: currentGen + 1,
         culled: bottom.map((a) => ({
-          id: a.id,
-          name: a.name,
-          fitness: a.fitness,
+          id: a.id, name: a.name, fitness: a.fitness,
           cause: airiaResult.postMortems.find(pm => pm.agentId === a.id)?.cause || "Culled due to low fitness.",
           inheritedBy: top.slice(0, 2).map(t => t.id),
         })),
-        born: newAgents.map((a) => ({
-          id: a.id,
-          name: a.name,
-          fitness: a.fitness,
-          parentIds: a.parentIds || [],
-        })),
+        born: newAgents.map((a) => ({ id: a.id, name: a.name, fitness: a.fitness, parentIds: a.parentIds || [] })),
         avgFitnessBefore: Math.round(avgBefore * 10) / 10,
         avgFitnessAfter: Math.round(avgAfter * 10) / 10,
         topFitness: Math.round(topFit * 10) / 10,
       });
 
       setAgents(allNext);
+      setPostMortems((pm) => [...newPostMortems, ...pm].slice(0, 20));
       setCurrentGen((g) => g + 1);
-      setGenHistory((h) => {
-        const lastTop = h[h.length - 1]?.topFitness || 70;
-        const lastAvg = h[h.length - 1]?.avgFitness || 45;
-        return [...h, {
-          gen: h.length,
-          avgFitness: Math.round((lastAvg + Math.random() * 5 + 1) * 10) / 10,
-          topFitness: Math.round((lastTop + Math.random() * 4 + 1) * 10) / 10,
-          population: 40,
-          diversity: Math.round((0.6 + Math.random() * 0.3) * 100) / 100,
-        }];
-      });
+      setGenHistory((h) => [...h, genData]);
 
       if (airiaResult.diversityAlert) {
         toast({ title: "⚠️ Diversity Alert", description: `Population converging. Suggested chaos archetype: ${airiaResult.chaosArchetype}` });
       }
-
     } catch (err) {
       console.error("Generation failed:", err);
       toast({ title: "Generation Failed", description: "Error running evolution cycle.", variant: "destructive" });
@@ -163,23 +206,52 @@ export default function Index() {
     }
   }, [agents, currentGen, environment, behavior]);
 
-  const handleRegimeChange = useCallback((regime: EnvironmentState["regime"]) => {
-    setEnvironment((e) => ({
-      ...e,
+  const handleRegimeChange = useCallback(async (regime: EnvironmentState["regime"]) => {
+    const newEnv: EnvironmentState = {
       regime,
       volatility: regime === "risk-off" ? "high" : regime === "choppy" ? "medium" : "low",
+      earningsActive: environment.earningsActive,
+      macroEvent: environment.macroEvent,
       sentiment: regime === "risk-on" ? 0.65 : regime === "risk-off" ? -0.42 : regime === "trending" ? 0.34 : 0.05,
-    }));
+    };
+    setEnvironment(newEnv);
+    await updateEnvironment(newEnv).catch(console.error);
+  }, [environment]);
+
+  const handleOverride = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("update-behavior", {
+        body: { overrideAction: "manual trade intervention — user overrode system position" },
+      });
+      if (error) throw error;
+      if (data) {
+        setBehavior({
+          riskTolerance: Number(data.risk_tolerance),
+          drawdownSensitivity: Number(data.drawdown_sensitivity),
+          earningsAvoidance: Number(data.earnings_avoidance),
+          momentumBias: Number(data.momentum_bias),
+          holdingPatience: Number(data.holding_patience),
+        });
+        if (data.insight) {
+          toast({ title: "Behavioral Update", description: data.insight });
+        }
+      }
+    } catch (err) {
+      console.error("Behavior update failed:", err);
+      toast({ title: "Override Failed", description: "Could not update behavioral genome.", variant: "destructive" });
+    }
   }, []);
 
-  const handleOverride = useCallback(() => {
-    setBehavior((b) => ({
-      ...b,
-      riskTolerance: Math.max(0, Math.min(1, b.riskTolerance + (Math.random() * 0.1 - 0.05))),
-      drawdownSensitivity: Math.max(0, Math.min(1, b.drawdownSensitivity + (Math.random() * 0.08 - 0.02))),
-      holdingPatience: Math.max(0, Math.min(1, b.holdingPatience + (Math.random() * 0.06 - 0.03))),
-    }));
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background grid-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <p className="text-sm font-mono text-muted-foreground">Loading population from database...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background grid-bg">
@@ -208,7 +280,7 @@ export default function Index() {
             <span>·</span>
             <div className="flex items-center gap-1.5">
               <Brain className="h-3 w-3 text-accent" />
-              <span>Self-Evolving</span>
+              <span>DB Persisted</span>
             </div>
           </div>
         </div>
@@ -216,7 +288,6 @@ export default function Index() {
 
       {/* Main Content */}
       <main className="max-w-[1800px] mx-auto p-6 space-y-6">
-        {/* Controls */}
         <GenerationControls
           currentGeneration={currentGen}
           isRunning={isRunning}
@@ -225,9 +296,7 @@ export default function Index() {
           extinctCount={extinctAgents.length}
         />
 
-        {/* Dashboard Grid */}
         <div className="grid grid-cols-12 gap-4">
-          {/* Agent Grid — Left 8 cols */}
           <div className="col-span-12 lg:col-span-8 space-y-4">
             <div className="rounded-xl border border-border bg-card p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -247,7 +316,6 @@ export default function Index() {
               </div>
             </div>
 
-            {/* Bottom row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl border border-border bg-card p-4">
                 <GenerationChart data={genHistory} />
@@ -258,7 +326,6 @@ export default function Index() {
             </div>
           </div>
 
-          {/* Right sidebar — 4 cols */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
             <div className="rounded-xl border border-border bg-card p-4">
               <EnvironmentPanel environment={environment} onRegimeChange={handleRegimeChange} />
