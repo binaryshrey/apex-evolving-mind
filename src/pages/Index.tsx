@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AgentGenome, EnvironmentState, PostMortem, BehavioralGenome } from "@/data/types";
+import { AgentGenome, EnvironmentState, PostMortem, BehavioralGenome, TradeRecord, MarketSnapshot } from "@/data/types";
 import { callAiriaEvolve } from "@/lib/airiaClient";
 import {
   fetchAgents, upsertAgents, insertAgents,
@@ -9,6 +9,8 @@ import {
   fetchEnvironment, updateEnvironment,
   fetchBehavioralGenome,
   fetchPortfolio, insertPortfolioSnapshot,
+  fetchTradeHistory, insertTrades,
+  fetchLatestMarketSnapshot,
 } from "@/lib/dbClient";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -24,7 +26,22 @@ import PortfolioWidget, { PortfolioState } from "@/components/PortfolioWidget";
 import PerformanceLeaderboard from "@/components/PerformanceLeaderboard";
 import StrategyAllocation from "@/components/StrategyAllocation";
 import GuidedTour from "@/components/GuidedTour";
+import MarketContextPanel from "@/components/MarketContextPanel";
+import TradeHistoryLog from "@/components/TradeHistoryLog";
+import RiskMetricsDashboard from "@/components/RiskMetricsDashboard";
 import { Dna, Activity, Brain, Loader2 } from "lucide-react";
+
+// ─── Types for generation summary ───
+interface GenSummary {
+  generation: number;
+  culled: { id: string; name: string; fitness: number; cause: string; inheritedBy: string[] }[];
+  born: { id: string; name: string; fitness: number; parentIds: string[] }[];
+  avgFitnessBefore: number;
+  avgFitnessAfter: number;
+  topFitness: number;
+  capitalBefore: number;
+  capitalAfter: number;
+}
 
 export default function Index() {
   const [agents, setAgents] = useState<AgentGenome[]>([]);
@@ -39,32 +56,28 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
   const [showTour, setShowTour] = useState(false);
   const [portfolio, setPortfolio] = useState<PortfolioState>({ capital: 100000, pnl: 0, pnlPercent: 0, generation: 0 });
-  const [generationSummary, setGenerationSummary] = useState<{
-    generation: number;
-    culled: { id: string; name: string; fitness: number; cause: string; inheritedBy: string[] }[];
-    born: { id: string; name: string; fitness: number; parentIds: string[] }[];
-    avgFitnessBefore: number;
-    avgFitnessAfter: number;
-    topFitness: number;
-    capitalBefore: number;
-    capitalAfter: number;
-  } | null>(null);
+  const [generationSummary, setGenerationSummary] = useState<GenSummary | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentState>({
     regime: "trending", volatility: "medium", earningsActive: false, macroEvent: false, sentiment: 0.34,
   });
+  const [trades, setTrades] = useState<TradeRecord[]>([]);
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null);
+  const [isMarketLoading, setIsMarketLoading] = useState(false);
 
   // ─── Load all data from DB on mount ───
   useEffect(() => {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [dbAgents, dbGens, dbPMs, dbEnv, dbBehavior, dbPortfolio] = await Promise.all([
+        const [dbAgents, dbGens, dbPMs, dbEnv, dbBehavior, dbPortfolio, dbTrades, dbMarket] = await Promise.all([
           fetchAgents(),
           fetchGenerations(),
           fetchPostMortems(),
           fetchEnvironment(),
           fetchBehavioralGenome(),
           fetchPortfolio().catch(() => ({ capital: 100000, pnl: 0, pnlPercent: 0, generation: 0 })),
+          fetchTradeHistory().catch(() => []),
+          fetchLatestMarketSnapshot().catch(() => null),
         ]);
 
         if (dbAgents.length > 0) {
@@ -74,9 +87,10 @@ export default function Index() {
           setEnvironment(dbEnv);
           setBehavior(dbBehavior);
           setPortfolio(dbPortfolio);
+          setTrades(dbTrades);
+          setMarketSnapshot(dbMarket);
           setCurrentGen(dbGens.length > 0 ? Math.max(...dbGens.map(g => g.gen)) : 0);
           
-          // Show tour on first visit
           const hasSeenTour = localStorage.getItem("apex-tour-seen");
           if (!hasSeenTour) setShowTour(true);
         } else {
@@ -92,13 +106,8 @@ export default function Index() {
           toast({ title: "Population Ready", description: `${newAgents.length} AI-generated agents deployed.` });
         }
 
-        supabase.functions.invoke("fetch-market-data").then(async ({ data }) => {
-          if (data?.regime) {
-            const freshEnv = await fetchEnvironment();
-            setEnvironment(freshEnv);
-            toast({ title: "Market Scan", description: data.rationale || `Regime: ${data.regime}` });
-          }
-        }).catch(console.error);
+        // Fetch live market data
+        refreshMarketData();
 
       } catch (err) {
         console.error("Failed to load data:", err);
@@ -110,8 +119,55 @@ export default function Index() {
     loadData();
   }, []);
 
+  const refreshMarketData = useCallback(async () => {
+    setIsMarketLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-market-data");
+      if (error) throw error;
+      if (data?.regime) {
+        const freshEnv = await fetchEnvironment();
+        setEnvironment(freshEnv);
+        const freshSnap = await fetchLatestMarketSnapshot();
+        setMarketSnapshot(freshSnap);
+        toast({ title: "Market Scan", description: data.rationale || `Regime: ${data.regime}` });
+      }
+    } catch (err) {
+      console.error("Market data error:", err);
+    } finally {
+      setIsMarketLoading(false);
+    }
+  }, []);
+
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "extinct"), [agents]);
   const extinctAgents = useMemo(() => agents.filter((a) => a.status === "extinct"), [agents]);
+
+  // ─── Generate simulated trades for agents ───
+  const generateTrades = useCallback((activeAgents: AgentGenome[], gen: number, cryptoData: any): Omit<TradeRecord, "id" | "createdAt">[] => {
+    const assets = ["BTC", "ETH", "SOL", "ADA", "AVAX"];
+    const cryptoKeys: Record<string, string> = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", ADA: "cardano", AVAX: "avalanche-2" };
+    
+    return activeAgents.slice(0, 10).map((agent) => {
+      const asset = assets[Math.floor(Math.random() * assets.length)];
+      const basePrice = cryptoData?.[cryptoKeys[asset]]?.usd || (asset === "BTC" ? 60000 : asset === "ETH" ? 3000 : 100);
+      const action = agent.genome.entryLogic > 0.5 ? "buy" : agent.genome.exitDiscipline > 0.6 ? "sell" : "hold";
+      const pnlMultiplier = (agent.fitness / 100) * (Math.random() * 2 - 0.5);
+      const pnl = Math.round(basePrice * agent.genome.positionSizing * pnlMultiplier * 100) / 100;
+      
+      return {
+        agentId: agent.id,
+        agentName: agent.name,
+        generation: gen,
+        action: action as "buy" | "sell" | "hold",
+        asset,
+        entryPrice: Math.round(basePrice * 100) / 100,
+        exitPrice: action !== "hold" ? Math.round((basePrice + pnl) * 100) / 100 : null,
+        quantity: Math.round(agent.genome.positionSizing * 10 * 100) / 100,
+        pnl: Math.round(pnl * 100) / 100,
+        pnlPercent: Math.round((pnl / basePrice) * 10000) / 100,
+        rationale: `${agent.archetype} strategy: ${action === "buy" ? "entry signal detected" : action === "sell" ? "exit discipline triggered" : "no clear signal"}`,
+      };
+    });
+  }, []);
 
   const runGeneration = useCallback(async () => {
     setIsRunning(true);
@@ -175,7 +231,6 @@ export default function Index() {
       const topFit = Math.max(...activeNext.map(a => a.fitness));
       const topAgent = activeNext.reduce((best, a) => a.fitness > best.fitness ? a : best, activeNext[0]);
 
-      // Calculate portfolio change based on agent performance
       const capitalBefore = portfolio.capital;
       const performanceMultiplier = (avgAfter - avgBefore) / 100;
       const newCapital = Math.round(capitalBefore * (1 + performanceMultiplier));
@@ -189,6 +244,9 @@ export default function Index() {
         population: activeNext.length,
         diversity: Math.round((0.6 + Math.random() * 0.3) * 100) / 100,
       };
+
+      // Generate trades using live market prices
+      const newTrades = generateTrades(activeNext, currentGen + 1, marketSnapshot?.data?.crypto);
 
       // Serialize agent upserts to avoid deadlocks
       await upsertAgents(updated);
@@ -206,9 +264,13 @@ export default function Index() {
           avgFitnessBefore: Math.round(avgBefore * 10) / 10,
           avgFitnessAfter: Math.round(avgAfter * 10) / 10,
         }),
+        insertTrades(newTrades).catch(console.error),
       ]);
 
       setPortfolio({ capital: newCapital, pnl: totalPnl, pnlPercent: Math.round(totalPnlPercent * 100) / 100, generation: currentGen + 1 });
+
+      // Refresh trades from DB
+      fetchTradeHistory().then(setTrades).catch(console.error);
 
       setGenerationSummary({
         generation: currentGen + 1,
@@ -239,7 +301,7 @@ export default function Index() {
     } finally {
       setIsRunning(false);
     }
-  }, [agents, currentGen, environment, behavior, portfolio]);
+  }, [agents, currentGen, environment, behavior, portfolio, marketSnapshot, generateTrades]);
 
   const handleRegimeChange = useCallback(async (regime: EnvironmentState["regime"]) => {
     const newEnv: EnvironmentState = {
@@ -375,9 +437,26 @@ export default function Index() {
                 <SpeciesMap agents={agents} />
               </div>
             </div>
+
+            {/* Trade History */}
+            <TradeHistoryLog trades={trades} />
           </div>
 
           <div className="col-span-12 lg:col-span-4 space-y-4">
+            {/* Live Market Context */}
+            <MarketContextPanel
+              snapshot={marketSnapshot}
+              isLoading={isMarketLoading}
+              onRefresh={refreshMarketData}
+            />
+
+            {/* Risk Metrics */}
+            <RiskMetricsDashboard
+              agents={agents}
+              portfolio={portfolio}
+              genHistory={genHistory}
+            />
+
             <PerformanceLeaderboard agents={agents} />
 
             <div className="rounded-xl border border-border bg-card p-4">

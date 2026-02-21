@@ -36,7 +36,7 @@ export interface EnvironmentState {
   volatility: "low" | "medium" | "high";
   earningsActive: boolean;
   macroEvent: boolean;
-  sentiment: number; // -1 to 1
+  sentiment: number;
 }
 
 export interface BehavioralGenome {
@@ -45,4 +45,36 @@ export interface BehavioralGenome {
   earningsAvoidance: number;
   momentumBias: number;
   holdingPatience: number;
+}
+
+export interface TradeRecord {
+  id: number;
+  agentId: string;
+  agentName: string;
+  generation: number;
+  action: "buy" | "sell" | "hold";
+  asset: string;
+  entryPrice: number;
+  exitPrice: number | null;
+  quantity: number;
+  pnl: number;
+  pnlPercent: number;
+  rationale: string | null;
+  createdAt: string;
+}
+
+export interface MarketSnapshot {
+  id: number;
+  source: string;
+  data: {
+    crypto?: Record<string, { usd: number; usd_24h_change: number; usd_24h_vol: number; usd_market_cap: number }>;
+    fearGreed?: { value: string; value_classification: string };
+    regime?: string;
+    sentiment?: number;
+    marketMood?: string;
+    newsHeadlines?: string[];
+    rationale?: string;
+    timestamp?: string;
+  };
+  createdAt: string;
 }

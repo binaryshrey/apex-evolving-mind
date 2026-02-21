@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { AgentGenome, PostMortem, EnvironmentState, BehavioralGenome } from "@/data/types";
+import { AgentGenome, PostMortem, EnvironmentState, BehavioralGenome, TradeRecord, MarketSnapshot } from "@/data/types";
 
 // ─── Agent CRUD ───
 
@@ -185,6 +185,69 @@ export async function insertPortfolioSnapshot(snapshot: {
     avg_fitness_after: snapshot.avgFitnessAfter,
   });
   if (error) throw error;
+}
+
+// ─── Trade History ───
+
+export async function fetchTradeHistory(limit = 50): Promise<TradeRecord[]> {
+  const { data, error } = await supabase
+    .from("trade_history")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []).map((t: any) => ({
+    id: t.id,
+    agentId: t.agent_id,
+    agentName: t.agent_name,
+    generation: t.generation,
+    action: t.action,
+    asset: t.asset,
+    entryPrice: Number(t.entry_price),
+    exitPrice: t.exit_price ? Number(t.exit_price) : null,
+    quantity: Number(t.quantity),
+    pnl: Number(t.pnl),
+    pnlPercent: Number(t.pnl_percent),
+    rationale: t.rationale,
+    createdAt: t.created_at,
+  }));
+}
+
+export async function insertTrades(trades: Omit<TradeRecord, "id" | "createdAt">[]): Promise<void> {
+  const rows = trades.map((t) => ({
+    agent_id: t.agentId,
+    agent_name: t.agentName,
+    generation: t.generation,
+    action: t.action,
+    asset: t.asset,
+    entry_price: t.entryPrice,
+    exit_price: t.exitPrice,
+    quantity: t.quantity,
+    pnl: t.pnl,
+    pnl_percent: t.pnlPercent,
+    rationale: t.rationale,
+  }));
+  const { error } = await supabase.from("trade_history").insert(rows);
+  if (error) throw error;
+}
+
+// ─── Market Snapshots ───
+
+export async function fetchLatestMarketSnapshot(): Promise<MarketSnapshot | null> {
+  const { data, error } = await supabase
+    .from("market_snapshots")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id,
+    source: data.source,
+    data: data.data as any,
+    createdAt: data.created_at,
+  };
 }
 
 // ─── Helpers ───
