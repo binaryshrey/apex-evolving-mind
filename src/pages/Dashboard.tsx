@@ -17,7 +17,6 @@ import { toast } from "@/hooks/use-toast";
 import AgentCard from "@/components/AgentCard";
 import PostMortemFeed from "@/components/PostMortemFeed";
 import BehavioralRadar from "@/components/BehavioralRadar";
-import TradeOverrideWidget from "@/components/TradeOverrideWidget";
 import GenerationChart from "@/components/GenerationChart";
 
 import EnvironmentPanel from "@/components/EnvironmentPanel";
@@ -563,10 +562,8 @@ export default function Index() {
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4">
-              <BehavioralRadar genome={behavior} />
+              <BehavioralRadar genome={behavior} onUpdate={setBehavior} />
             </div>
-
-            <TradeOverrideWidget genome={behavior} onUpdate={setBehavior} />
 
             <div className="rounded-xl border border-border bg-card p-4">
               <PostMortemFeed postMortems={postMortems} />

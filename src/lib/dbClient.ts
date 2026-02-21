@@ -189,7 +189,7 @@ export async function insertPortfolioSnapshot(snapshot: {
 
 // ─── Trade History ───
 
-export async function fetchTradeHistory(limit = 50): Promise<TradeRecord[]> {
+export async function fetchTradeHistory(limit = 500): Promise<TradeRecord[]> {
   const { data, error } = await supabase
     .from("trade_history")
     .select("*")

@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { BehavioralGenome } from "@/data/types";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sliders } from "lucide-react";
+import TradeOverrideWidget from "@/components/TradeOverrideWidget";
 
 interface BehavioralRadarProps {
   genome: BehavioralGenome;
+  onUpdate?: (genome: BehavioralGenome) => void;
 }
 
 const labels: Record<keyof BehavioralGenome, string> = {
@@ -14,7 +18,9 @@ const labels: Record<keyof BehavioralGenome, string> = {
   holdingPatience: "Holding Patience",
 };
 
-export default function BehavioralRadar({ genome }: BehavioralRadarProps) {
+export default function BehavioralRadar({ genome, onUpdate }: BehavioralRadarProps) {
+  const [showOverride, setShowOverride] = useState(false);
+
   const data = Object.entries(genome).map(([key, value]) => ({
     subject: labels[key as keyof BehavioralGenome],
     value: Math.round(value * 100),
@@ -27,9 +33,20 @@ export default function BehavioralRadar({ genome }: BehavioralRadarProps) {
       animate={{ opacity: 1 }}
       className="space-y-3"
     >
-      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Behavioral DNA
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Behavioral DNA
+        </h3>
+        {onUpdate && (
+          <button
+            onClick={() => setShowOverride(true)}
+            className="flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-[10px] font-mono font-medium text-accent transition-colors hover:bg-accent/20"
+          >
+            <Sliders className="h-3 w-3" />
+            Configure
+          </button>
+        )}
+      </div>
       <div className="h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
@@ -65,6 +82,35 @@ export default function BehavioralRadar({ genome }: BehavioralRadarProps) {
           </div>
         ))}
       </div>
+
+      {/* Override Modal */}
+      <AnimatePresence>
+        {showOverride && onUpdate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowOverride(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md"
+            >
+              <TradeOverrideWidget
+                genome={genome}
+                onUpdate={(updated) => {
+                  onUpdate(updated);
+                  setShowOverride(false);
+                }}
+                onClose={() => setShowOverride(false)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
