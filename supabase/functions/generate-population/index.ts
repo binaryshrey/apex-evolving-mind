@@ -13,6 +13,9 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json().catch(() => ({}));
+    const requestedCount = Math.min(Math.max(Number(body.count) || 40, 10), 100);
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -40,11 +43,11 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a quantitative finance expert. Generate exactly 40 unique trading strategy agent configurations. Each agent represents a different algorithmic trading approach. Be creative with names and realistic with parameters.
+            content: `You are a quantitative finance expert. Generate exactly ${requestedCount} unique trading strategy agent configurations. Each agent represents a different algorithmic trading approach. Be creative with names and realistic with parameters.
 
-Respond ONLY with a JSON array of 40 objects, each with:
+Respond ONLY with a JSON array of ${requestedCount} objects, each with:
 {
-  "id": "AGT-001" through "AGT-040",
+  "id": "AGT-001" through "AGT-${String(requestedCount).padStart(3, "0")}",
   "name": "Creative strategy name (2-3 words)",
   "archetype": one of "momentum"|"defensive"|"volatility"|"mean-reversion"|"hybrid",
   "fitness": realistic starting fitness 20-85,
@@ -61,12 +64,12 @@ Respond ONLY with a JSON array of 40 objects, each with:
   }
 }
 
-Make the archetypes distribution roughly: 10 momentum, 8 defensive, 8 volatility, 7 mean-reversion, 7 hybrid.
+Make the archetypes distribution roughly balanced across the 5 types.
 Ensure diversity in fitness scores and genome traits. Higher fitness agents should have more balanced genomes.`
           },
           {
             role: "user",
-            content: "Generate 40 trading strategy agents now. Return ONLY the JSON array, no markdown."
+            content: `Generate ${requestedCount} trading strategy agents now. Return ONLY the JSON array, no markdown.`
           }
         ],
         temperature: 0.8,
