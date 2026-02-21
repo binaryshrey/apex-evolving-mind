@@ -96,15 +96,15 @@ RESPOND IN THIS EXACT JSON FORMAT:
   "generationInsight": "string (1-2 sentence summary of this generation's evolution)"
 }`;
 
-    // Call Airia API
-    const airiaResponse = await fetch("https://api.airia.com/v1/messages", {
+    // Call Airia Evolutionary Orchestrator Agent
+    const airiaResponse = await fetch("https://api.airia.ai/v2/PipelineExecution/e8aeffdc-e336-4843-8337-aa2b7581f0a0", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": AIRIA_API_KEY,
       },
       body: JSON.stringify({
-        message: prompt,
+        UserInput: prompt,
       }),
     });
 
