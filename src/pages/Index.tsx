@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AgentGenome, EnvironmentState, PostMortem } from "@/data/types";
 import { generateAgents, initialPostMortems, behavioralGenome, generationHistory } from "@/data/agentData";
+import { callAiriaEvolve } from "@/lib/airiaClient";
+import { toast } from "@/hooks/use-toast";
 import AgentCard from "@/components/AgentCard";
 import PostMortemFeed from "@/components/PostMortemFeed";
 import BehavioralRadar from "@/components/BehavioralRadar";
@@ -45,107 +47,97 @@ export default function Index() {
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "extinct"), [agents]);
   const extinctAgents = useMemo(() => agents.filter((a) => a.status === "extinct"), [agents]);
 
-  const runGeneration = useCallback(() => {
+  const runGeneration = useCallback(async () => {
     setIsRunning(true);
 
-    setTimeout(() => {
-      setAgents((prev) => {
-        const sorted = [...prev].filter(a => a.status !== "extinct").sort((a, b) => b.fitness - a.fitness);
-        const cullCount = Math.floor(sorted.length * 0.2);
-        const culled = sorted.slice(-cullCount);
-        const top = sorted.slice(0, Math.floor(sorted.length * 0.2));
+    try {
+      const sorted = [...agents].filter(a => a.status !== "extinct").sort((a, b) => b.fitness - a.fitness);
+      const cullCount = Math.floor(sorted.length * 0.2);
+      const bottom = sorted.slice(-cullCount);
+      const top = sorted.slice(0, Math.floor(sorted.length * 0.2));
 
-        const newPostMortems: PostMortem[] = culled.map((agent) => ({
-          id: `pm-${Date.now()}-${agent.id}`,
-          agentId: agent.id,
-          agentName: agent.name,
-          generation: agent.generation,
-          cause: `Eliminated in generation ${currentGen + 1} selection. Fitness score ${agent.fitness.toFixed(1)} fell below survival threshold. ${
-            agent.sharpe < 0.5 ? "Weak risk-adjusted returns." : ""
-          } ${agent.maxDrawdown > 15 ? `Excessive drawdown of ${agent.maxDrawdown}%.` : ""} ${
-            agent.winRate < 45 ? "Sub-par win rate." : ""
-          } Genome traits propagated to offspring.`,
-          inheritedBy: top.slice(0, 2).map((t) => t.id),
-          timestamp: new Date(),
-          fitnessAtDeath: agent.fitness,
-        }));
+      // Call Airia via edge function
+      const airiaResult = await callAiriaEvolve(top, bottom, currentGen, environment, behavior);
 
-        const newAgents = culled.map((_, i) => {
-          const p1 = top[i % top.length];
-          const p2 = top[(i + 1) % top.length];
-          const newId = `AGT-${String(prev.length + i + 1).padStart(3, "0")}`;
-          return {
-            id: newId,
-            name: strategies[Math.floor(Math.random() * strategies.length)],
-            generation: currentGen + 1,
-            fitness: Math.round(((p1.fitness + p2.fitness) / 2 + (Math.random() * 10 - 3)) * 10) / 10,
-            status: "newborn" as const,
-            archetype: archetypes[Math.floor(Math.random() * archetypes.length)],
-            sharpe: Math.round(((p1.sharpe + p2.sharpe) / 2 + (Math.random() * 0.4 - 0.1)) * 100) / 100,
-            maxDrawdown: Math.round(((p1.maxDrawdown + p2.maxDrawdown) / 2) * 10) / 10,
-            winRate: Math.round(((p1.winRate + p2.winRate) / 2 + (Math.random() * 5 - 2)) * 10) / 10,
-            totalReturn: Math.round(((p1.totalReturn + p2.totalReturn) / 2 + (Math.random() * 5 - 1)) * 100) / 100,
-            trades: 0,
-            parentIds: [p1.id, p2.id],
-            genome: {
-              entryLogic: Math.round(((p1.genome.entryLogic + p2.genome.entryLogic) / 2 + (Math.random() * 0.1 - 0.05)) * 100) / 100,
-              exitDiscipline: Math.round(((p1.genome.exitDiscipline + p2.genome.exitDiscipline) / 2 + (Math.random() * 0.1 - 0.05)) * 100) / 100,
-              riskTolerance: Math.round(((p1.genome.riskTolerance + p2.genome.riskTolerance) / 2 + (Math.random() * 0.1 - 0.05)) * 100) / 100,
-              positionSizing: Math.round(((p1.genome.positionSizing + p2.genome.positionSizing) / 2 + (Math.random() * 0.1 - 0.05)) * 100) / 100,
-              indicatorWeight: Math.round(((p1.genome.indicatorWeight + p2.genome.indicatorWeight) / 2 + (Math.random() * 0.1 - 0.05)) * 100) / 100,
-            },
-          } as AgentGenome;
-        });
+      if (airiaResult.source === "airia") {
+        toast({ title: "Airia Orchestrator", description: airiaResult.generationInsight });
+      } else {
+        toast({ title: "Local Fallback", description: "Airia unavailable — used local evolution.", variant: "destructive" });
+      }
 
-        setPostMortems((pm) => [...newPostMortems, ...pm].slice(0, 10));
+      // Build post-mortems from Airia response
+      const newPostMortems: PostMortem[] = airiaResult.postMortems.map((pm) => ({
+        id: `pm-${Date.now()}-${pm.agentId}`,
+        agentId: pm.agentId,
+        agentName: pm.agentName,
+        generation: currentGen,
+        cause: pm.cause,
+        inheritedBy: pm.inheritedBy,
+        timestamp: new Date(),
+        fitnessAtDeath: bottom.find(a => a.id === pm.agentId)?.fitness || 0,
+      }));
 
-        // Compute avg fitness before
-        const avgBefore = sorted.reduce((s, a) => s + a.fitness, 0) / sorted.length;
+      // Build new agents from Airia offspring
+      const newAgents: AgentGenome[] = airiaResult.offspring.map((child, i) => ({
+        id: `AGT-${String(agents.length + i + 1).padStart(3, "0")}`,
+        name: child.name,
+        generation: currentGen + 1,
+        fitness: child.fitness,
+        status: "newborn" as const,
+        archetype: child.archetype as AgentGenome["archetype"],
+        sharpe: Math.round((child.fitness / 30) * 100) / 100,
+        maxDrawdown: Math.round((1 - child.genome.riskTolerance) * 20 * 10) / 10,
+        winRate: Math.round((45 + child.fitness * 0.3) * 10) / 10,
+        totalReturn: Math.round((child.fitness * 0.4 - 10) * 100) / 100,
+        trades: 0,
+        parentIds: child.parentIds,
+        genome: child.genome,
+      }));
 
-        // Update surviving agents with slight fitness changes
-        const updated = prev.map((a) => {
-          if (culled.find((c) => c.id === a.id)) {
-            return { ...a, status: "extinct" as const };
-          }
-          if (a.status === "newborn") {
-            return { ...a, status: "active" as const };
-          }
-          return {
-            ...a,
-            fitness: Math.round((a.fitness + (Math.random() * 6 - 2)) * 10) / 10,
-            trades: a.trades + Math.floor(Math.random() * 20),
-          };
-        });
+      setPostMortems((pm) => [...newPostMortems, ...pm].slice(0, 10));
 
-        const allNext = [...updated, ...newAgents];
-        const activeNext = allNext.filter(a => a.status !== "extinct");
-        const avgAfter = activeNext.reduce((s, a) => s + a.fitness, 0) / activeNext.length;
-        const topFit = Math.max(...activeNext.map(a => a.fitness));
+      const avgBefore = sorted.reduce((s, a) => s + a.fitness, 0) / sorted.length;
 
-        // Set summary for modal
-        setGenerationSummary({
-          generation: currentGen + 1,
-          culled: culled.map((a) => ({
-            id: a.id,
-            name: a.name,
-            fitness: a.fitness,
-            cause: newPostMortems.find(pm => pm.agentId === a.id)?.cause || "",
-            inheritedBy: top.slice(0, 2).map(t => t.id),
-          })),
-          born: newAgents.map((a) => ({
-            id: a.id,
-            name: a.name,
-            fitness: a.fitness,
-            parentIds: a.parentIds || [],
-          })),
-          avgFitnessBefore: Math.round(avgBefore * 10) / 10,
-          avgFitnessAfter: Math.round(avgAfter * 10) / 10,
-          topFitness: Math.round(topFit * 10) / 10,
-        });
-
-        return allNext;
+      const updated = agents.map((a) => {
+        if (bottom.find((c) => c.id === a.id)) {
+          return { ...a, status: "extinct" as const };
+        }
+        if (a.status === "newborn") {
+          return { ...a, status: "active" as const };
+        }
+        return {
+          ...a,
+          fitness: Math.round((a.fitness + (Math.random() * 6 - 2)) * 10) / 10,
+          trades: a.trades + Math.floor(Math.random() * 20),
+        };
       });
 
+      const allNext = [...updated, ...newAgents];
+      const activeNext = allNext.filter(a => a.status !== "extinct");
+      const avgAfter = activeNext.reduce((s, a) => s + a.fitness, 0) / activeNext.length;
+      const topFit = Math.max(...activeNext.map(a => a.fitness));
+
+      setGenerationSummary({
+        generation: currentGen + 1,
+        culled: bottom.map((a) => ({
+          id: a.id,
+          name: a.name,
+          fitness: a.fitness,
+          cause: airiaResult.postMortems.find(pm => pm.agentId === a.id)?.cause || "Culled due to low fitness.",
+          inheritedBy: top.slice(0, 2).map(t => t.id),
+        })),
+        born: newAgents.map((a) => ({
+          id: a.id,
+          name: a.name,
+          fitness: a.fitness,
+          parentIds: a.parentIds || [],
+        })),
+        avgFitnessBefore: Math.round(avgBefore * 10) / 10,
+        avgFitnessAfter: Math.round(avgAfter * 10) / 10,
+        topFitness: Math.round(topFit * 10) / 10,
+      });
+
+      setAgents(allNext);
       setCurrentGen((g) => g + 1);
       setGenHistory((h) => {
         const lastTop = h[h.length - 1]?.topFitness || 70;
@@ -159,9 +151,17 @@ export default function Index() {
         }];
       });
 
+      if (airiaResult.diversityAlert) {
+        toast({ title: "⚠️ Diversity Alert", description: `Population converging. Suggested chaos archetype: ${airiaResult.chaosArchetype}` });
+      }
+
+    } catch (err) {
+      console.error("Generation failed:", err);
+      toast({ title: "Generation Failed", description: "Error running evolution cycle.", variant: "destructive" });
+    } finally {
       setIsRunning(false);
-    }, 2500);
-  }, [currentGen]);
+    }
+  }, [agents, currentGen, environment, behavior]);
 
   const handleRegimeChange = useCallback((regime: EnvironmentState["regime"]) => {
     setEnvironment((e) => ({
