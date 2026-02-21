@@ -269,6 +269,35 @@ export default function Index() {
         insertTrades(newTrades).catch(console.error),
       ]);
 
+      // Execute top agent trades on Alpaca paper account
+      const alpacaTrades = newTrades
+        .filter(t => t.action !== "hold")
+        .slice(0, 5)
+        .map(t => ({
+          symbol: t.asset === "BTC" ? "BTCUSD" : t.asset === "ETH" ? "ETHUSD" : t.asset === "SOL" ? "SOLUSD" : t.asset,
+          qty: Math.max(1, Math.round(t.quantity)),
+          side: t.action,
+          agentId: t.agentId,
+          agentName: t.agentName,
+          generation: t.generation,
+          rationale: t.rationale,
+        }));
+
+      if (alpacaTrades.length > 0) {
+        supabase.functions.invoke("alpaca-trade", {
+          body: { action: "execute", trades: alpacaTrades },
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error("Alpaca execute error:", error);
+          } else {
+            const submitted = data?.results?.filter((r: any) => r.status === "submitted")?.length || 0;
+            if (submitted > 0) {
+              toast({ title: "Alpaca Trades", description: `${submitted} paper trades submitted to Alpaca.` });
+            }
+          }
+        }).catch(console.error);
+      }
+
       setPortfolio({ capital: newCapital, pnl: totalPnl, pnlPercent: Math.round(totalPnlPercent * 100) / 100, generation: currentGen + 1 });
 
       // Refresh trades from DB
