@@ -47,13 +47,13 @@ export async function fetchGenerations() {
 }
 
 export async function insertGeneration(gen: { gen: number; avgFitness: number; topFitness: number; population: number; diversity: number }) {
-  const { error } = await supabase.from("generations").insert({
+  const { error } = await supabase.from("generations").upsert({
     gen: gen.gen,
     avg_fitness: gen.avgFitness,
     top_fitness: gen.topFitness,
     population: gen.population,
     diversity: gen.diversity,
-  });
+  }, { onConflict: "gen" });
   if (error) throw error;
 }
 
