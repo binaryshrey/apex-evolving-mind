@@ -3,13 +3,14 @@ import { motion } from "framer-motion";
 import { BehavioralGenome } from "@/data/types";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sliders, Zap, RotateCcw } from "lucide-react";
+import { Sliders, Zap, RotateCcw, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 interface TradeOverrideWidgetProps {
   genome: BehavioralGenome;
   onUpdate: (genome: BehavioralGenome) => void;
+  onClose?: () => void;
 }
 
 const paramConfig: { key: keyof BehavioralGenome; label: string; description: string }[] = [
@@ -20,7 +21,7 @@ const paramConfig: { key: keyof BehavioralGenome; label: string; description: st
   { key: "holdingPatience", label: "Holding Patience", description: "Willingness to hold positions longer" },
 ];
 
-export default function TradeOverrideWidget({ genome, onUpdate }: TradeOverrideWidgetProps) {
+export default function TradeOverrideWidget({ genome, onUpdate, onClose }: TradeOverrideWidgetProps) {
   const [localGenome, setLocalGenome] = useState<BehavioralGenome>(genome);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,7 +57,6 @@ export default function TradeOverrideWidget({ genome, onUpdate }: TradeOverrideW
           holdingPatience: Number(data.holding_patience),
         };
         onUpdate(updated);
-        setLocalGenome(updated);
         if (data.insight) {
           toast({ title: "Agents Adapting", description: data.insight });
         }
@@ -70,21 +70,28 @@ export default function TradeOverrideWidget({ genome, onUpdate }: TradeOverrideW
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xl">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <Sliders className="h-3.5 w-3.5" />
           Trade Override Config
         </h3>
-        {hasChanges && (
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasChanges && (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <ScrollArea className="h-[320px] pr-3">
