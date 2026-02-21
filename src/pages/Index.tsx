@@ -29,6 +29,8 @@ import GuidedTour from "@/components/GuidedTour";
 import MarketContextPanel from "@/components/MarketContextPanel";
 import TradeHistoryLog from "@/components/TradeHistoryLog";
 import RiskMetricsDashboard from "@/components/RiskMetricsDashboard";
+import AlpacaPaperPanel from "@/components/AlpacaPaperPanel";
+import MacroDataPanel from "@/components/MacroDataPanel";
 import { Dna, Activity, Brain, Loader2 } from "lucide-react";
 
 // ─── Types for generation summary ───
@@ -456,6 +458,12 @@ export default function Index() {
               portfolio={portfolio}
               genHistory={genHistory}
             />
+
+            {/* Alpaca Paper Trading */}
+            <AlpacaPaperPanel />
+
+            {/* FRED Macro & Equities */}
+            <MacroDataPanel />
 
             <PerformanceLeaderboard agents={agents} />
 
