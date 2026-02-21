@@ -164,11 +164,14 @@ export default function Landing() {
                 <span className="ml-3 text-[10px] font-mono text-muted-foreground">apex-evolution — dashboard</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground/60">/dashboard</span>
               </div>
-              <img
-                src={dashboardPreview}
-                alt="APEX Evolution Dashboard showing agent population, market context, and risk metrics"
-                className="w-full"
-              />
+              <div className="relative w-full" style={{ height: "500px" }}>
+                <iframe
+                  src="/dashboard"
+                  title="APEX Evolution Dashboard"
+                  className="w-full h-full border-0 pointer-events-none"
+                  style={{ transform: "scale(0.55)", transformOrigin: "top left", width: "182%", height: "182%" }}
+                />
+              </div>
             </div>
             {/* Glow */}
             <div className="absolute -inset-4 -z-10 rounded-2xl bg-primary/5 blur-3xl" />
