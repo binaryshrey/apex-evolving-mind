@@ -3,16 +3,11 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { DollarSign, TrendingUp, TrendingDown, Briefcase, BarChart3, RefreshCw, Zap } from "lucide-react";
 
-interface AlpacaAccount {
-  equity: number;
-  cash: number;
-  buyingPower: number;
-  portfolioValue: number;
+interface PortfolioData {
+  capital: number;
   pnl: number;
   pnlPercent: number;
-  status: string;
-  patternDayTrader: boolean;
-  tradingBlocked: boolean;
+  generation: number;
 }
 
 interface AlpacaPosition {
@@ -39,8 +34,11 @@ interface AlpacaOrder {
   createdAt: string;
 }
 
-export default function AlpacaPaperPanel() {
-  const [account, setAccount] = useState<AlpacaAccount | null>(null);
+interface Props {
+  portfolio: PortfolioData;
+}
+
+export default function AlpacaPaperPanel({ portfolio }: Props) {
   const [positions, setPositions] = useState<AlpacaPosition[]>([]);
   const [orders, setOrders] = useState<AlpacaOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,12 +47,10 @@ export default function AlpacaPaperPanel() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [accRes, posRes, ordRes] = await Promise.all([
-        supabase.functions.invoke("alpaca-trade", { body: { action: "account" } }),
+      const [posRes, ordRes] = await Promise.all([
         supabase.functions.invoke("alpaca-trade", { body: { action: "positions" } }),
         supabase.functions.invoke("alpaca-trade", { body: { action: "orders" } }),
       ]);
-      if (accRes.data && !accRes.error) setAccount(accRes.data);
       if (posRes.data && !posRes.error) setPositions(posRes.data);
       if (ordRes.data && !ordRes.error) setOrders(ordRes.data);
     } catch (e) {
@@ -100,40 +96,33 @@ export default function AlpacaPaperPanel() {
         ))}
       </div>
 
-      {!account && !isLoading && (
-        <div className="text-center py-4">
-          <p className="text-[10px] text-muted-foreground mb-2">Click refresh to connect to your Alpaca paper account.</p>
-          <button onClick={fetchData} className="text-[10px] font-mono text-primary hover:underline">
-            Connect Now →
-          </button>
-        </div>
-      )}
-
-      {/* Account Tab */}
-      {activeTab === "account" && account && (
+      {/* Account Tab — uses internal portfolio data */}
+      {activeTab === "account" && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-md bg-secondary px-2 py-1.5 text-center">
               <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Equity</div>
-              <div className="text-sm font-mono font-bold text-foreground">${account.equity.toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
+              <div className="text-sm font-mono font-bold text-foreground">${portfolio.capital.toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
             </div>
             <div className="rounded-md bg-secondary px-2 py-1.5 text-center">
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Day P&L</div>
-              <div className={`text-sm font-mono font-bold ${account.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
-                {account.pnl >= 0 ? "+" : ""}${account.pnl.toFixed(2)}
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Total P&L</div>
+              <div className={`text-sm font-mono font-bold ${portfolio.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                {portfolio.pnl >= 0 ? "+" : ""}${portfolio.pnl.toLocaleString("en-US", { maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="rounded-md bg-secondary px-2 py-1.5 text-center">
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Cash</div>
-              <div className="text-xs font-mono text-foreground">${account.cash.toLocaleString()}</div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Return %</div>
+              <div className={`text-xs font-mono font-bold ${portfolio.pnlPercent >= 0 ? "text-primary" : "text-destructive"}`}>
+                {portfolio.pnlPercent >= 0 ? "+" : ""}{portfolio.pnlPercent.toFixed(2)}%
+              </div>
             </div>
             <div className="rounded-md bg-secondary px-2 py-1.5 text-center">
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Buying Power</div>
-              <div className="text-xs font-mono text-foreground">${account.buyingPower.toLocaleString()}</div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Generation</div>
+              <div className="text-xs font-mono text-foreground">Gen {portfolio.generation}</div>
             </div>
           </div>
-          <div className={`text-[9px] font-mono text-center py-1 rounded ${account.tradingBlocked ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
-            Status: {account.status} {account.tradingBlocked ? "⛔ BLOCKED" : "✅ ACTIVE"}
+          <div className="text-[9px] font-mono text-center py-1 rounded bg-primary/10 text-primary">
+            Tracked internally · Alpaca orders synced ✅
           </div>
         </motion.div>
       )}
@@ -159,7 +148,7 @@ export default function AlpacaPaperPanel() {
         </motion.div>
       )}
 
-      {activeTab === "positions" && positions.length === 0 && account && (
+      {activeTab === "positions" && positions.length === 0 && (
         <div className="text-center py-3 text-[10px] text-muted-foreground">No open positions</div>
       )}
 
@@ -184,7 +173,7 @@ export default function AlpacaPaperPanel() {
         </motion.div>
       )}
 
-      {activeTab === "orders" && orders.length === 0 && account && (
+      {activeTab === "orders" && orders.length === 0 && (
         <div className="text-center py-3 text-[10px] text-muted-foreground">No recent orders</div>
       )}
     </div>
