@@ -2,3 +2,12 @@ project_id = "stnilsrpdkijzjezykcb"
 
 [functions.airia-evolve]
 verify_jwt = false
+
+[functions.generate-population]
+verify_jwt = false
+
+[functions.fetch-market-data]
+verify_jwt = false
+
+[functions.update-behavior]
+verify_jwt = false
