@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import AgentCard from "@/components/AgentCard";
 import PostMortemFeed from "@/components/PostMortemFeed";
 import BehavioralRadar from "@/components/BehavioralRadar";
+import TradeOverrideWidget from "@/components/TradeOverrideWidget";
 import GenerationChart from "@/components/GenerationChart";
 
 import EnvironmentPanel from "@/components/EnvironmentPanel";
@@ -563,15 +564,9 @@ export default function Index() {
 
             <div className="rounded-xl border border-border bg-card p-4">
               <BehavioralRadar genome={behavior} />
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleOverride}
-                className="mt-3 w-full rounded-lg border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-mono font-medium text-accent transition-colors hover:bg-accent/20"
-              >
-                Simulate Trade Override
-              </motion.button>
             </div>
+
+            <TradeOverrideWidget genome={behavior} onUpdate={setBehavior} />
 
             <div className="rounded-xl border border-border bg-card p-4">
               <PostMortemFeed postMortems={postMortems} />
