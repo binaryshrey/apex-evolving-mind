@@ -135,7 +135,39 @@ Each agent carries a **genome** that encodes its trading personality:
 
 ---
 
-## 🤖 Airia Integration
+## 🤖 Airia Deep Integration
+
+Airia is the **cognitive engine** behind APEX --- not just a text
+generator.
+
+### Evolutionary Intelligence
+
+-   Scores agents using performance + behavioral alignment
+-   Selects weakest strategies for extinction
+-   Breeds new agents with synthesized genomes
+-   Generates explainable post‑mortems
+
+### Behavioral Learning
+
+User overrides update a behavioral genome:
+
+    Human decision → Airia reasoning → Genome mutation → Future evolution
+
+### Environmental Intelligence
+
+Market headlines become structured signals:
+
+``` json
+{
+  "regime": "risk-off",
+  "volatility_level": "high",
+  "sentiment_score": -0.6
+}
+```
+
+Airia continuously shapes how the system adapts.
+![Airia1](https://raw.githubusercontent.com/binaryshrey/apex-evolving-mind/refs/heads/main/public/airia1.png)
+![Airia2](https://raw.githubusercontent.com/binaryshrey/apex-evolving-mind/refs/heads/main/public/airia2.png)
 
 APEX makes **3 types of live Airia calls**:
 
