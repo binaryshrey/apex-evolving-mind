@@ -121,10 +121,13 @@ RESPOND IN THIS EXACT JSON FORMAT:
     }
 
     const airiaData = await airiaResponse.json();
+    console.log("Airia raw response keys:", Object.keys(airiaData));
     
-    // Extract the response content - Airia may wrap it differently
+    // Extract the response content - Airia v2 returns { result: "..." }
     let resultText = "";
-    if (typeof airiaData === "string") {
+    if (airiaData.result && typeof airiaData.result === "string") {
+      resultText = airiaData.result;
+    } else if (typeof airiaData === "string") {
       resultText = airiaData;
     } else if (airiaData.content) {
       resultText = typeof airiaData.content === "string" ? airiaData.content : JSON.stringify(airiaData.content);
@@ -136,14 +139,29 @@ RESPOND IN THIS EXACT JSON FORMAT:
       resultText = JSON.stringify(airiaData);
     }
 
+    console.log("Airia resultText length:", resultText.length);
+    console.log("Airia resultText preview:", resultText.substring(0, 300));
+
     // Try to parse JSON from the response
     let parsed;
     try {
       // Extract JSON from possible markdown code blocks
-      const jsonMatch = resultText.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, resultText];
-      parsed = JSON.parse(jsonMatch[1]!.trim());
+      const jsonMatch = resultText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[1]!.trim());
+      } else {
+        // Try to find a JSON object in the text
+        const jsonObjMatch = resultText.match(/\{[\s\S]*"postMortems"[\s\S]*\}/);
+        if (jsonObjMatch) {
+          parsed = JSON.parse(jsonObjMatch[0]);
+        } else {
+          // Try direct parse
+          parsed = JSON.parse(resultText);
+        }
+      }
     } catch (parseErr) {
-      console.error("Failed to parse Airia response as JSON, using fallback:", parseErr);
+      console.error("Failed to parse Airia response as JSON:", parseErr);
+      console.log("Full resultText:", resultText.substring(0, 1000));
       const fallbackResult = generateFallback(topAgents, bottomAgents, currentGeneration, environment);
       return new Response(JSON.stringify(fallbackResult), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
