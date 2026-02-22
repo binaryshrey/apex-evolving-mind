@@ -64,9 +64,8 @@ export default function Landing() {
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
-            <Dna className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold tracking-tight">
-              APEX <span className="text-primary">Evolution</span>
+              FalseMarkets
             </span>
           </Link>
 
@@ -172,7 +171,7 @@ export default function Landing() {
               <div className="relative w-full" style={{ height: "500px" }}>
                 <iframe
                   src="/dashboard"
-                  title="APEX Evolution Dashboard"
+                  title="FalseMarkets Dashboard"
                   className="w-full h-full border-0"
                   style={{ transform: "scale(0.55)", transformOrigin: "top left", width: "182%", height: "182%" }}
                 />
@@ -286,10 +285,9 @@ export default function Landing() {
       <footer className="border-t border-border/40 py-8">
         <div className="mx-auto max-w-7xl px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Dna className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-foreground">APEX Evolution</span>
+            <span className="font-semibold text-foreground">FalseMarkets</span>
           </div>
-          <p>© {new Date().getFullYear()} APEX Evolution. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} FalseMarkets. All rights reserved.</p>
         </div>
       </footer>
     </div>

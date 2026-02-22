@@ -4,8 +4,8 @@ import { X, ChevronRight, Dna, SkipForward, Wallet, Trophy, PieChart, Activity, 
 
 const tourSteps = [
   {
-    title: "Welcome to APEX",
-    description: "APEX is an AI-powered evolutionary trading system. It breeds, tests, and evolves algorithmic trading strategies using natural selection — powered by Airia's orchestration engine.",
+    title: "Welcome to FalseMarkets",
+    description: "FalseMarkets is an AI-powered evolutionary trading system. It breeds, tests, and evolves algorithmic trading strategies using natural selection — powered by Airia's orchestration engine.",
     icon: Dna,
     highlight: "header",
   },

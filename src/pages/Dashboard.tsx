@@ -501,14 +501,9 @@ export default function Index() {
       <header className="border-b border-border px-6 py-4">
         <div className="flex items-center justify-between max-w-[1800px] mx-auto">
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <Dna className="h-7 w-7 text-primary text-glow-green" />
-              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary animate-pulse-green" />
-            </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight">
-                <span className="text-primary text-glow-green">APEX</span>
-                <span className="text-muted-foreground font-normal ml-2 text-sm">Autonomous Population of Evolving eXperts</span>
+                <span className="text-primary text-glow-green">FalseMarkets</span>
               </h1>
             </div>
           </div>
